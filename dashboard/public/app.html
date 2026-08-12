@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>RapidX Voice , Console</title>
+<meta name="description" content="RapidX Voice console. Build and preview AI voice agents from ₹1/min for the promotional AI layer; telephony and carrier charges are separate." />
+<meta name="theme-color" content="#06070A" />
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/assets/brand.css?v=20260808-gold" />
+  <link rel="stylesheet" href="/assets/app.css?v=20260812-vars" />
+</head>
+<body class="grain">
+
+<!-- Background atmosphere (shared with marketing for one cohesive product) -->
+<div class="atmos" aria-hidden="true">
+  <span class="glow g1"></span><span class="glow g2"></span><span class="glow g3"></span>
+</div>
+
+<!-- No-JS notice. The console is an authenticated SPA and needs JavaScript. -->
+<noscript>
+  <div class="nojs">
+    <strong>JavaScript is required.</strong>
+    The RapidX Voice console is an interactive app. Please enable JavaScript to sign in and manage your agents.
+  </div>
+</noscript>
+
+<!-- App root. Everything below is rendered by app.js. The skeleton here keeps the
+     first paint premium even before scripts run. It is replaced on boot. -->
+<div id="app" class="app-root" aria-busy="true">
+  <div class="boot">
+    <div class="boot-mark" aria-hidden="true">
+      <svg viewBox="0 0 40 40" width="40" height="40">
+        <defs>
+          <linearGradient id="bm" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#34E7E4"/><stop offset="0.55" stop-color="#6E7BFF"/><stop offset="1" stop-color="#A855F7"/>
+          </linearGradient>
+        </defs>
+        <path d="M20 3 L34 11 V29 L20 37 L6 29 V11 Z" fill="none" stroke="url(#bm)" stroke-width="2"/>
+        <path d="M14 20 h2 l2 -6 3 12 2 -8 2 4 h3" fill="none" stroke="url(#bm)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="boot-text">Starting console<span class="spin boot-spin"></span></div>
+  </div>
+</div>
+
+<!-- Toast stack -->
+<div id="toasts" class="toasts" aria-live="polite" aria-atomic="false"></div>
+
+<!-- Modal host -->
+<div id="modal-host" class="modal-host hide" aria-hidden="true"></div>
+
+  <script src="/assets/app.js?v=20260812-vars" defer></script>
+</body>
+</html>

@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RapidX Agent Console</title>
+<link rel="stylesheet" href="/styles.css" />
+<style>
+  .console-grid{display:grid;grid-template-columns:300px 1fr 320px;gap:18px;align-items:start}
+  .col-card{background:linear-gradient(180deg,var(--card),var(--bg2));border:1px solid var(--line);border-radius:var(--r);padding:18px}
+  .agent-item{background:var(--bg);border:1px solid var(--line2);border-radius:10px;padding:11px 12px;margin-bottom:9px;cursor:pointer;transition:.15s}
+  .agent-item:hover{border-color:var(--mut2)}
+  .agent-item.sel{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc-soft)}
+  .agent-item .an{font-size:14px;font-weight:600}
+  .agent-item .av{font-size:11px;color:var(--mut2);font-family:var(--fm);margin-top:3px}
+  .mini{font-size:11px;color:var(--mut);font-family:var(--fm)}
+  .form-row{margin-bottom:11px}
+  .dialer{display:flex;gap:8px;margin-top:8px}
+  .dialer .input{flex:1}
+  .status-line{display:flex;justify-content:space-between;font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--line)}
+  .status-line b{font-family:var(--fm)}
+  .badge{font-size:11px;padding:3px 8px;border-radius:999px;font-family:var(--fm)}
+  .badge.ok{background:rgba(58,210,159,.12);color:var(--good)}
+  .badge.bad{background:rgba(255,107,107,.12);color:var(--bad)}
+  .badge.warn{background:rgba(255,180,92,.12);color:var(--warn)}
+  .inbound-note{background:rgba(255,180,92,.08);border:1px solid rgba(255,180,92,.35);border-radius:10px;padding:11px 12px;margin-top:12px;font-size:12px;color:#e8d3a8;line-height:1.5}
+  .chatbox{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:150px;max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin:10px 0}
+  .empty-pick{color:var(--mut2);text-align:center;padding:40px 0}
+</style>
+</head>
+<body>
+<div class="bg-orbs" aria-hidden="true"><span></span><span></span><span></span></div>
+
+<header class="topbar">
+  <div class="brand"><span class="mark">◆</span><span class="name">RapidX <em>Agent Console</em></span></div>
+  <div class="topbar-right">
+    <span id="health" class="pill pill-muted">checking…</span>
+    <a class="pill pill-ghost" href="/index.html" style="text-decoration:none">Studio →</a>
+  </div>
+</header>
+
+<main>
+  <div class="console-grid">
+
+    <!-- COL 1: agents -->
+    <section class="col-card">
+      <h3 style="font-size:14px;margin-bottom:12px">Agents</h3>
+      <button id="mintBtn" class="btn btn-primary" style="width:100%;margin-bottom:8px">⚡ Mint demo agent</button>
+      <button id="newBtn" class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:14px">+ New agent</button>
+
+      <div id="newForm" hidden>
+        <div class="form-row"><label class="field-label">Name</label><input id="nName" class="input" value="RapidX Receptionist" /></div>
+        <div class="form-row"><label class="field-label">Persona</label><textarea id="nPersona" class="input" rows="3">You are a warm, sharp receptionist for RapidX AI. Answer in 1-2 short spoken sentences, book callbacks, qualify the lead.</textarea></div>
+        <div class="form-row"><label class="field-label">Greeting</label><input id="nGreeting" class="input" value="Hi, thanks for calling RapidX. How can I help you today?" /></div>
+        <div class="form-row" style="display:flex;gap:8px">
+          <select id="nModel" class="select"><option value="bulbul:v3">bulbul:v3 (expressive)</option><option value="bulbul:v2">bulbul:v2 (fast)</option></select>
+          <select id="nSpeaker" class="select"><option>shubh</option><option>aditya</option><option>ritu</option><option>priya</option><option>neha</option><option>rahul</option><option>pooja</option><option>rohan</option><option>simran</option><option>kavya</option><option>amit</option><option>dev</option><option>ishita</option><option>shreya</option><option>ratan</option><option>varun</option><option>manan</option><option>sumit</option><option>roopa</option><option>kabir</option></select>
+        </div>
+        <button id="createBtn" class="btn btn-primary btn-sm" style="width:100%">Create agent</button>
+      </div>
+
+      <div id="agentList" style="margin-top:14px"></div>
+    </section>
+
+    <!-- COL 2: selected agent -->
+    <section class="col-card" id="agentPanel">
+      <div class="empty-pick" id="emptyPick">Mint or pick an agent to test it.</div>
+      <div id="agentDetail" hidden>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h3 id="aName" style="font-size:17px"></h3>
+          <button id="delBtn" class="btn btn-ghost btn-sm">Delete</button>
+        </div>
+        <div class="mini" id="aVoice" style="margin:4px 0 14px"></div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="greetBtn" class="btn btn-ghost btn-sm">▶ Play greeting (Sarvam voice)</button>
+          <span id="voiceStatus" class="mini"></span>
+        </div>
+
+        <div class="chatbox" id="chat"><div class="mini" style="margin:auto">Type to the agent. It replies in its Sarvam voice.</div></div>
+        <div class="dialer">
+          <input id="chatInput" class="input" placeholder="Type a message to test the agent…" />
+          <button id="sendBtn" class="btn btn-primary">Send</button>
+        </div>
+
+        <div style="border-top:1px solid var(--line);margin-top:18px;padding-top:14px">
+          <label class="field-label">📞 Outbound call (real, paid VoBiz call)</label>
+          <div class="dialer">
+            <input id="dialNum" class="input" placeholder="10-digit mobile, e.g. 9876543210" />
+            <button id="dialBtn" class="btn btn-primary">Call</button>
+          </div>
+          <div id="dialStatus" class="mini" style="margin-top:8px"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- COL 3: telephony status -->
+    <section class="col-card">
+      <h3 style="font-size:14px;margin-bottom:12px">VoBiz via Dograh</h3>
+      <div id="vlStatus"><div class="mini">loading…</div></div>
+      <div class="inbound-note" id="inboundNote" hidden></div>
+      <a id="cdrLink" class="btn btn-ghost btn-sm" style="width:100%;margin-top:12px;text-decoration:none;text-align:center" href="#" target="_blank">Open call log ↗</a>
+    </section>
+
+  </div>
+</main>
+
+<script>
+const $=s=>document.querySelector(s); const $$=s=>Array.from(document.querySelectorAll(s));
+let agents=[], selected=null, audioCtx=null;
+function ctx(){ if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:24000}); return audioCtx; }
+
+fetch('/api/health').then(r=>r.json()).then(h=>{
+  const el=$('#health');
+  const sarvam=!!(h.providers&&h.providers.tts&&h.providers.tts.sarvam);
+  const gemini=!!(h.providers&&h.providers.llm&&h.providers.llm.gemini);
+  const vobiz=!!(h.providers&&h.providers.telephony&&h.providers.telephony.vobiz);
+  el.textContent='sarvam '+(sarvam?'✓':'✗')+'  brain '+(gemini?'✓':'✗')+'  vobiz '+(vobiz?'✓':'✗');
+  el.className='pill '+((sarvam&&gemini&&vobiz)?'ok':'err');
+}).catch(()=>{});
+
+// ---- Sarvam streaming voice ----
+function speak(text, model, speaker){
+  return new Promise(async resolve=>{
+    let mint; try{ mint=await(await fetch('/api/ws-connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,text})})).json(); }catch(e){ return resolve(0); }
+    if(!mint.ws_url) return resolve(0);
+    const c=ctx(); if(c.state==='suspended') c.resume();
+    let playAt=c.currentTime+0.05, frames=0, lastEnd=playAt;
+    const ws=new WebSocket(mint.ws_url+'?token='+encodeURIComponent(mint.token)); ws.binaryType='arraybuffer';
+    const frame={text}; if(String(model).startsWith('bulbul')){ frame.speaker=speaker; frame.f0_up_key=0; }
+    ws.onopen=()=>ws.send(JSON.stringify(frame));
+    ws.onmessage=e=>{ if(e.data instanceof ArrayBuffer){ frames++; const pcm=new Int16Array(e.data); const buf=c.createBuffer(1,pcm.length,24000); const ch=buf.getChannelData(0); for(let i=0;i<pcm.length;i++)ch[i]=pcm[i]/32768; const src=c.createBufferSource(); src.buffer=buf; src.connect(c.destination); playAt=Math.max(playAt,c.currentTime); src.start(playAt); playAt+=buf.duration; lastEnd=playAt; } else { let m={}; try{m=JSON.parse(e.data);}catch{} if(m.type==='done'||m.error) ws.close(); } };
+    ws.onclose=()=>setTimeout(()=>resolve(frames),Math.max(0,(lastEnd-c.currentTime)*1000+120));
+    ws.onerror=()=>resolve(frames);
+  });
+}
+
+// ---- agents ----
+async function loadAgents(){ const r=await(await fetch('/api/agents')).json(); agents=r.agents||[]; renderAgents(); }
+function renderAgents(){
+  const box=$('#agentList'); box.innerHTML='';
+  if(!agents.length){ box.innerHTML='<div class="mini" style="text-align:center;padding:14px 0">No agents yet.</div>'; return; }
+  agents.forEach(a=>{
+    const d=document.createElement('div'); d.className='agent-item'+(selected&&selected.id===a.id?' sel':'');
+    d.innerHTML='<div class="an">'+a.name+'</div><div class="av">'+a.model+' · '+(String(a.model).startsWith('bulbul')?a.speaker:'tone')+'</div>';
+    d.onclick=()=>{ selected=a; renderAgents(); renderDetail(); }; box.appendChild(d);
+  });
+}
+function renderDetail(){
+  if(!selected){ $('#emptyPick').hidden=false; $('#agentDetail').hidden=true; return; }
+  $('#emptyPick').hidden=true; $('#agentDetail').hidden=false;
+  $('#aName').textContent=selected.name;
+  $('#aVoice').textContent='voice: Sarvam '+selected.model+(String(selected.model).startsWith('bulbul')?' · '+selected.speaker:'')+'  ·  id '+selected.id;
+  $('#chat').innerHTML='<div class="mini" style="margin:auto">Type to the agent. It replies in its Sarvam voice.</div>';
+}
+
+$('#mintBtn').onclick=async()=>{
+  const demo={ name:'Demo Agent '+(agents.length+1), persona:'You are RapidX, a friendly demo voice agent. Reply in one or two short spoken sentences, upbeat and human.', greeting:'Hey! This is your RapidX demo agent, minted out of thin air. Ask me anything.', model:'bulbul:v3', speaker:'shubh' };
+  const r=await(await fetch('/api/agents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(demo)})).json();
+  await loadAgents(); selected=r.agent; renderAgents(); renderDetail();
+};
+$('#newBtn').onclick=()=>{ $('#newForm').hidden=!$('#newForm').hidden; };
+$('#createBtn').onclick=async()=>{
+  const body={ name:$('#nName').value, persona:$('#nPersona').value, greeting:$('#nGreeting').value, model:$('#nModel').value, speaker:$('#nSpeaker').value };
+  const r=await(await fetch('/api/agents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+  $('#newForm').hidden=true; await loadAgents(); selected=r.agent; renderAgents(); renderDetail();
+};
+$('#delBtn').onclick=async()=>{ if(!selected)return; await fetch('/api/agents/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:selected.id})}); selected=null; await loadAgents(); renderDetail(); };
+
+$('#greetBtn').onclick=async()=>{ if(!selected)return; ctx().resume(); $('#voiceStatus').textContent='speaking…'; const n=await speak(selected.greeting, selected.model, selected.speaker); $('#voiceStatus').textContent=n?('played ('+n+' chunks)'):'failed'; };
+
+function bubble(role,text){ const c=$('#chat'); const e=c.querySelector('.mini'); if(e)e.remove(); const b=document.createElement('div'); b.className='bubble '+(role==='user'?'user':'bot'); b.innerHTML='<span class="who">'+(role==='user'?'you':'agent')+'</span>'+text; c.appendChild(b); c.scrollTop=c.scrollHeight; }
+let convo=[];
+async function send(){
+  if(!selected) return; const inp=$('#chatInput'); const txt=inp.value.trim(); if(!txt)return; inp.value='';
+  ctx().resume(); bubble('user',txt); convo.push({role:'user',text:txt});
+  const reply=(await(await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system:selected.persona,messages:convo})})).json()).text||'…';
+  bubble('bot',reply); convo.push({role:'model',text:reply});
+  speak(reply, selected.model, selected.speaker);
+}
+$('#sendBtn').onclick=send; $('#chatInput').addEventListener('keydown',e=>{ if(e.key==='Enter')send(); });
+
+$('#dialBtn').onclick=async()=>{
+  if(!selected){ $('#dialStatus').textContent='pick an agent first'; return; }
+  const num=$('#dialNum').value.trim(); if(!num){ $('#dialStatus').textContent='enter a number'; return; }
+  if(!confirm('Place a REAL paid VoBiz call to '+num+' through Dograh?')) return;
+  $('#dialStatus').textContent='dialing…';
+  const r=await fetch('/api/telephony/dial',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({number:num,confirm:true})});
+  const d=await r.json();
+  $('#dialStatus').textContent = r.ok ? ('call queued ✓ '+(d.message||JSON.stringify(d).slice(0,80))) : ('error: '+(d.error||d.message||r.status));
+};
+
+// ---- VoBiz status from Dograh ----
+fetch('/api/telephony/status').then(r=>r.json()).then(s=>{
+  const box=$('#vlStatus');
+  if(s.error){ box.innerHTML='<div class="mini" style="color:var(--bad)">'+s.error+'</div>'; return; }
+  let html='';
+  html+='<div class="status-line"><span>Provider</span><span class="badge '+(s.connected?'ok':'bad')+'">VoBiz via Dograh</span></div>';
+  html+='<div class="status-line"><span>Configuration</span><b>'+((s.configuration&&s.configuration.name)||'?')+'</b></div>';
+  (s.dids||[]).forEach(r=>{
+    const active=r.status==='active';
+    html+='<div class="status-line"><span>Number '+(r.number||'?')+'</span><span class="badge '+(active?'ok':'bad')+'">'+(active?'active':'off')+'</span></div>';
+  });
+  html+='<div class="status-line"><span>Outbound workflow</span><span class="badge ok">'+(s.workflowId||'?')+'</span></div>';
+  box.innerHTML=html;
+  $('#cdrLink').href=s.dashboard||'#';
+  $('#inboundNote').hidden=false;
+  $('#inboundNote').innerHTML='<b>Routing:</b> Dograh initiates outbound calls through VoBiz. Inbound calls follow the workflow assigned to each active number.';
+}).catch(e=>{ $('#vlStatus').innerHTML='<div class="mini" style="color:var(--bad)">status failed</div>'; });
+
+loadAgents();
+</script>
+</body>
+</html>
