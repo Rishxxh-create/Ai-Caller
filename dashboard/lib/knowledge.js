@@ -116,11 +116,49 @@ function knowledgeBlock(knowledge) {
   return parts.join('\n\n');
 }
 
-// The full system prompt for the web chat brain: persona plus knowledge.
-function composeAgentPrompt(persona, knowledge) {
+// Friendly labels for each supported speech language. Hinglish is a deliberate
+// mode: the voice stays Hindi, but the brain is told to blend Hindi and English.
+const LANGUAGE_LABELS = {
+  'en-IN': 'English (India)',
+  'hi-IN': 'Hindi',
+  'hinglish': 'Hinglish (natural mix of Hindi and English)',
+  'bn-IN': 'Bengali',
+  'gu-IN': 'Gujarati',
+  'kn-IN': 'Kannada',
+  'ml-IN': 'Malayalam',
+  'mr-IN': 'Marathi',
+  'od-IN': 'Odia',
+  'pa-IN': 'Punjabi',
+  'ta-IN': 'Tamil',
+  'te-IN': 'Telugu',
+};
+
+function agentLanguageLabel(agent) {
+  const lang = agent && agent.tts && agent.tts.language;
+  return LANGUAGE_LABELS[lang] || LANGUAGE_LABELS['en-IN'];
+}
+
+// A short block that tells the brain which language to reply in. Hinglish gets
+// an explicit mix instruction so the agent blends Hindi and English the way
+// people actually speak on Indian phone calls.
+function speechLanguageBlock(agent) {
+  const lang = agent && agent.tts && agent.tts.language;
+  if (lang === 'hinglish') {
+    return '# LANGUAGE\nReply in Hinglish: blend Hindi and English naturally in every answer, ' +
+      'switching between the two as people do on Indian phone calls. Keep numbers, names, and ' +
+      'business terms in English.';
+  }
+  const label = agentLanguageLabel(agent);
+  return '# LANGUAGE\nReply in ' + label + ' unless the caller clearly prefers another language.';
+}
+
+// The full system prompt for the web chat brain: persona, speech language, and
+// knowledge. The agent object is optional and carries the speech language.
+function composeAgentPrompt(persona, knowledge, agent) {
   const personaText = String(persona || '').trim();
   const block = knowledgeBlock(knowledge);
-  return [personaText, block].filter(Boolean).join('\n\n');
+  const lang = agent ? speechLanguageBlock(agent) : '';
+  return [personaText, lang, block].filter(Boolean).join('\n\n');
 }
 
 // Strip any previously appended knowledge block from a node prompt so a sync
@@ -144,4 +182,6 @@ module.exports = {
   knowledgeBlock,
   composeAgentPrompt,
   stripKnowledgeBlock,
+  agentLanguageLabel,
+  speechLanguageBlock,
 };

@@ -49,9 +49,9 @@ const State = {
 };
 
 const VOICE_MODELS = ['bulbul:v3', 'bulbul:v2'];
-const TTS_LANGUAGES = ['en-IN', 'hi-IN', 'ta-IN', 'te-IN', 'bn-IN', 'gu-IN', 'kn-IN', 'ml-IN', 'mr-IN', 'od-IN', 'pa-IN'];
+const TTS_LANGUAGES = ['en-IN', 'hi-IN', 'hinglish', 'ta-IN', 'te-IN', 'bn-IN', 'gu-IN', 'kn-IN', 'ml-IN', 'mr-IN', 'od-IN', 'pa-IN'];
 /* Friendly names for the language select, e.g. "English", "Hindi". */
-const LANG_LABELS = { 'en-IN': 'English', 'hi-IN': 'Hindi', 'ta-IN': 'Tamil', 'te-IN': 'Telugu', 'bn-IN': 'Bengali', 'gu-IN': 'Gujarati', 'kn-IN': 'Kannada', 'ml-IN': 'Malayalam', 'mr-IN': 'Marathi', 'od-IN': 'Odia', 'pa-IN': 'Punjabi' };
+const LANG_LABELS = { 'en-IN': 'English', 'hi-IN': 'Hindi', 'hinglish': 'Hinglish', 'ta-IN': 'Tamil', 'te-IN': 'Telugu', 'bn-IN': 'Bengali', 'gu-IN': 'Gujarati', 'kn-IN': 'Kannada', 'ml-IN': 'Malayalam', 'mr-IN': 'Marathi', 'od-IN': 'Odia', 'pa-IN': 'Punjabi' };
 function langLabel(code) { return LANG_LABELS[code] || code || 'English'; }
 /* All Sarvam Bulbul voices. V3 list first, then the seven v2-only voices. */
 const SPEAKERS = ['shubh', 'aditya', 'ritu', 'priya', 'neha', 'rahul', 'pooja', 'rohan', 'simran', 'kavya', 'amit', 'dev', 'ishita', 'shreya', 'ratan', 'varun', 'manan', 'sumit', 'roopa', 'kabir', 'aayan', 'ashutosh', 'advait', 'anand', 'tanya', 'tarun', 'sunny', 'mani', 'gokul', 'vijay', 'shruti', 'suhani', 'mohit', 'kavitha', 'rehan', 'soham', 'rupali', 'anushka', 'abhilash', 'manisha', 'vidya', 'arya', 'karun', 'hitesh'];

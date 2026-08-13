@@ -945,7 +945,7 @@ async function apiChat(req, res, ctx) {
     let system = b.system;
     if (b.agentId) {
       const agent = core.db().agents.find((a) => a.id === String(b.agentId) && a.tenantId === ctx.tenant.id);
-      if (agent) system = knowledge.composeAgentPrompt(agent.persona, agent.knowledge);
+      if (agent) system = knowledge.composeAgentPrompt(agent.persona, agent.knowledge, agent);
     }
     const out = await selected.adapter.chat({ messages: b.messages, system, model: selected.model });
     // Rough token accounting for the usage view (4 chars ~= 1 token).

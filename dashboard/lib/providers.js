@@ -51,7 +51,7 @@ const TTS_VOICES_V3 = new Set([
 // still normalizes speaker_1..4 to a named voice at synthesis time.
 const TTS_ALL_VOICES = new Set([...TTS_SPEAKERS, ...TTS_VOICES_V2, ...TTS_VOICES_V3]);
 const TTS_LANGUAGES = new Set([
-  'bn-IN', 'en-IN', 'gu-IN', 'hi-IN', 'kn-IN', 'ml-IN', 'mr-IN', 'od-IN', 'pa-IN', 'ta-IN', 'te-IN',
+  'bn-IN', 'en-IN', 'gu-IN', 'hi-IN', 'hinglish', 'kn-IN', 'ml-IN', 'mr-IN', 'od-IN', 'pa-IN', 'ta-IN', 'te-IN',
 ]);
 const PROVIDER_ID_RE = /^[a-z][a-z0-9_-]{0,63}$/;
 const MODEL_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/;
@@ -138,11 +138,12 @@ function resolveTtsConfig(agent) {
   else if (SPEAKER_PRESETS[raw]) voice = SPEAKER_PRESETS[raw];
   else voice = 'shubh';
   const language = TTS_LANGUAGES.has(tts.language) ? tts.language : (TTS_LANGUAGES.has(process.env.SARVAM_TTS_LANGUAGE) ? process.env.SARVAM_TTS_LANGUAGE : 'en-IN');
-  return { model: TTS_VOICES_V2.has(voice) ? 'bulbul:v2' : 'bulbul:v3', voice, language };
+  return { model: TTS_VOICES_V2.has(voice) ? 'bulbul:v2' : 'bulbul:v3', voice, language: sarvamLanguage(language) };
 }
 
 function sarvamLanguage(requested) {
   const language = String(requested || process.env.SARVAM_TTS_LANGUAGE || 'en-IN').trim();
+  if (language === 'hinglish') return 'hi-IN';
   return TTS_LANGUAGES.has(language) ? language : 'en-IN';
 }
 
