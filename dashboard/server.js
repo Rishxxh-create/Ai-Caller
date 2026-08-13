@@ -190,6 +190,9 @@ function migrateLegacyAgent(legacy, tenantId) {
 }
 
 async function boot() {
+  // Wait for the initial load so the seed below always starts from the
+  // persisted snapshot, never from an empty default. No-op for the file store.
+  await core.ready();
   // Force a load so a missing/corrupt db.json resolves to a clean default.
   const existing = core.db();
   await core.mutate((d) => {
@@ -198,15 +201,18 @@ async function boot() {
     }
   });
 
+  const wantsDemo = DEMO_EMAIL && DEMO_PASS.length >= 12;
   const hasDemo = DEMO_EMAIL && existing.users.some((u) => u.email === DEMO_EMAIL);
 
-  if (DEMO_EMAIL && DEMO_PASS.length >= 12 && !hasDemo) {
-    const tenantId = core.genId('t_');
-    const userId = core.genId('u_');
-    const nowIso = new Date().toISOString();
+  if (wantsDemo) {
     const legacy = readLegacyAgents();
-
     await core.mutate((d) => {
+      // Idempotent under the write lock so concurrent cold starts (multiple
+      // serverless instances) cannot seed the demo tenant twice.
+      if (d.users.some((u) => u.email === DEMO_EMAIL)) return;
+      const tenantId = core.genId('t_');
+      const userId = core.genId('u_');
+      const nowIso = new Date().toISOString();
       d.tenants.push({
         id: tenantId,
         name: DEMO_TENANT,
@@ -232,7 +238,7 @@ async function boot() {
       for (const la of legacy) d.agents.push(migrateLegacyAgent(la, tenantId));
     });
 
-    console.log(`  Seeded env-configured test tenant "${DEMO_TENANT}" with ${legacy.length} migrated agent(s).`);
+    if (!hasDemo) console.log(`  Seeded env-configured test tenant "${DEMO_TENANT}" with ${legacy.length} migrated agent(s).`);
   }
 
   // Migrate the old provider selection without rewriting tenant data by hand.

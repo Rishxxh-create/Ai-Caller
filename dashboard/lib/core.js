@@ -196,6 +196,98 @@ const DATA_DIR = path.join(ROOT, 'data');
 const DB_FILE = process.env.RAPIDX_DB_FILE ? path.resolve(process.env.RAPIDX_DB_FILE) : path.join(DATA_DIR, 'db.json');
 const DB_TMP = `${DB_FILE}.tmp`;
 
+/* ==========================================================================
+   4a. Optional Upstash Redis backend (used on Vercel).
+
+   Vercel has no writable filesystem, so the whole db document lives in Redis
+   under two keys (doc + version). Every mutate is an atomic compare-and-swap
+   (a Lua script on the server), so concurrent serverless instances cannot lose
+   each other's writes. db() and mutate() keep the exact same contract either
+   way, and the file backend stays the default for local dev and the tests.
+   No em dashes anywhere.
+   ========================================================================== */
+
+const KV_DOC_KEY = 'rapidx:db';
+const KV_VERSION_KEY = 'rapidx:db:version';
+const KV_CAS_SCRIPT = `
+local version = redis.call('GET', KEYS[2])
+if version == false then version = '0' end
+if tostring(version) ~= tostring(ARGV[1]) then return { 0, version } end
+redis.call('SET', KEYS[2], ARGV[2])
+redis.call('SET', KEYS[1], ARGV[3])
+return { 1, ARGV[2] }
+`;
+
+let _kvClient = null;
+let _kvLoading = null;
+
+// The KV backend is active when asked for explicitly or when Upstash (or the
+// legacy Vercel KV) credentials are present in the environment.
+function kvConfigured() {
+  return String(process.env.RAPIDX_STORE_BACKEND || '').trim().toLowerCase() === 'kv'
+    || !!(process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || process.env.KV_URL);
+}
+
+function kvClient() {
+  if (_kvClient) return _kvClient;
+  // Lazy, guarded require: local file mode never touches the dependency, so
+  // the zero-dependency promise is preserved unless the KV backend is used.
+  let Redis;
+  try {
+    Redis = require('@upstash/redis').Redis;
+  } catch (_) {
+    throw new Error('The Redis store is enabled but @upstash/redis is not installed.');
+  }
+  _kvClient = Redis.fromEnv();
+  return _kvClient;
+}
+
+async function kvLoadState() {
+  const redis = kvClient();
+  const [docRaw, versionRaw] = await Promise.all([
+    redis.get(KV_DOC_KEY),
+    redis.get(KV_VERSION_KEY),
+  ]);
+  let doc = null;
+  if (docRaw != null) {
+    doc = typeof docRaw === 'string' ? JSON.parse(docRaw) : docRaw;
+  }
+  return {
+    doc,
+    version: String(versionRaw == null ? '0' : versionRaw),
+  };
+}
+
+// Run one mutate against Redis: fresh read, apply fn, CAS write, retry on
+// conflict. Bounded retries; a hot writer simply fails rather than deadlock.
+async function kvMutateRun(fn) {
+  const redis = kvClient();
+  let lastError = new Error('kv write conflict');
+  for (let attempt = 0; attempt < 25; attempt++) {
+    const state = await kvLoadState();
+    const db = state.doc ? migrateDb(state.doc) : defaultDb();
+    let out;
+    try {
+      out = fn(db);
+    } catch (e) {
+      throw e;
+    }
+    const expected = state.version;
+    const next = String(Number(state.version) + 1);
+    const result = await redis.eval(
+      KV_CAS_SCRIPT,
+      [KV_DOC_KEY, KV_VERSION_KEY],
+      [expected, next, JSON.stringify(db)],
+    );
+    if (Array.isArray(result) && result[0] === 1) {
+      _db = db;
+      return out;
+    }
+    lastError = new Error(`kv write conflict at version ${expected}`);
+  }
+  throw lastError;
+}
+
 function defaultDb() {
   return {
     schemaVersion: 3,
@@ -234,10 +326,25 @@ function ensureDataDir() {
   try { fs.mkdirSync(path.dirname(DB_FILE), { recursive: true }); } catch (_) {}
 }
 
-// Load db.json into memory. On a missing or corrupt file, return a fresh default
-// (the caller is expected to seed and persist).
+// Load the db into memory. On a missing or corrupt file (or an unavailable
+// Redis store), return a fresh default (the caller is expected to seed).
+// In KV mode the initial load happens async: a default is returned immediately
+// and the real document is swapped in once the Redis read resolves. Await
+// core.ready() at boot before relying on the snapshot.
 function loadDb() {
   if (_db) return _db;
+  if (kvConfigured()) {
+    _db = defaultDb();
+    if (!_kvLoading) {
+      _kvLoading = kvLoadState()
+        .then((state) => {
+          if (state.doc) _db = migrateDb(state.doc);
+          return _db;
+        })
+        .catch(() => { _db = defaultDb(); return _db; });
+    }
+    return _db;
+  }
   ensureDataDir();
   try {
     const raw = fs.readFileSync(DB_FILE, 'utf8');
@@ -250,7 +357,15 @@ function loadDb() {
   return _db;
 }
 
-// Synchronous atomic flush of the current in-memory db to disk.
+// Resolve the initial load (async in KV mode, instant for the file store).
+// Returns the loaded db so boot can seed on top of the persisted snapshot.
+async function ready() {
+  loadDb();
+  if (_kvLoading) await _kvLoading;
+  return _db;
+}
+
+// Synchronous atomic flush of the current in-memory db to disk (file mode).
 function flushSync() {
   ensureDataDir();
   const json = JSON.stringify(_db, null, 2);
@@ -258,14 +373,9 @@ function flushSync() {
   fs.renameSync(DB_TMP, DB_FILE);
 }
 
-/**
- * Run a mutation against the db under the serial write lock.
- * `fn(db)` receives the live in-memory db, may mutate it, and may return a value
- * which becomes the resolved value of the returned promise. The db is flushed
- * atomically after fn runs. Errors inside fn reject without flushing a partial.
- */
-function mutate(fn) {
-  const run = () => new Promise((resolve, reject) => {
+// File-mode mutation body.
+function fileMutateRun(fn) {
+  return new Promise((resolve, reject) => {
     try {
       const db = loadDb();
       const out = fn(db);
@@ -275,6 +385,17 @@ function mutate(fn) {
       reject(e);
     }
   });
+}
+
+/**
+ * Run a mutation against the db under the serial write lock.
+ * `fn(db)` receives the live db, may mutate it, and may return a value which
+ * becomes the resolved value of the returned promise. The file backend flushes
+ * atomically after fn runs; the Redis backend writes with a compare-and-swap.
+ * Errors inside fn reject without writing anything.
+ */
+function mutate(fn) {
+  const run = () => (kvConfigured() ? kvMutateRun(fn) : fileMutateRun(fn));
   // Chain onto the tail so writes execute one at a time, in order. We swallow
   // the previous result/error for the chain itself but surface this run's own
   // result to the caller.
@@ -504,7 +625,7 @@ module.exports = {
   loadEnv,
   send, sendJson, readBody, httpsPost, httpsGet, httpsPut, httpsDelete,
   htmlEscape,
-  db, mutate, loadDb, defaultDb, migrateDb,
+  db, mutate, loadDb, ready, defaultDb, migrateDb, kvConfigured,
   hashPassword, verifyPassword,
   createSession, createImpersonationSession, destroySession, getSession, requireAuth, requireRole, hasRole,
   sessionCookie, clearCookie, COOKIE_NAME,
