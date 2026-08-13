@@ -7,6 +7,24 @@
 const crypto = require('crypto');
 const knowledge = require('./knowledge');
 
+const LANGUAGE_LABELS = {
+  'en-IN': 'English (India)',
+  'hi-IN': 'Hindi',
+  'bn-IN': 'Bengali',
+  'gu-IN': 'Gujarati',
+  'kn-IN': 'Kannada',
+  'ml-IN': 'Malayalam',
+  'mr-IN': 'Marathi',
+  'od-IN': 'Odia',
+  'pa-IN': 'Punjabi',
+  'ta-IN': 'Tamil',
+  'te-IN': 'Telugu',
+};
+
+function agentLanguageLabel(agent) {
+  return LANGUAGE_LABELS[agent && agent.tts && agent.tts.language] || 'English (India)';
+}
+
 // The global node prompt for a live voice call: the agent persona plus the
 // knowledge block, wrapped in the voice-specific speaking rules.
 function composeVoicePrompt(agent) {
@@ -21,6 +39,7 @@ function composeVoicePrompt(agent) {
     'Listen actively and respond to what the caller says. Accept information given unprompted and move on instead of asking again.',
     'Never interrupt. Never guess; if unsure, say you will confirm with the team.',
     'If asked whether you are an AI, answer honestly and briefly, then redirect back to helping.',
+    'Speak the caller\'s language if they use one, otherwise reply in ' + agentLanguageLabel(agent) + '.',
     '',
     knowledge.knowledgeBlock(agent.knowledge),
   ];
@@ -63,6 +82,7 @@ function definitionFingerprint(agent) {
   const source = JSON.stringify({
     greeting: String(agent.greeting || '').trim(),
     persona: String(agent.persona || '').trim(),
+    language: agent.tts ? String(agent.tts.language || '') : '',
     variables: Array.isArray(agent.variables) ? agent.variables : [],
     knowledge: agent.knowledge || null,
   });

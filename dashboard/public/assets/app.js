@@ -49,6 +49,7 @@ const State = {
 };
 
 const VOICE_MODELS = ['bulbul:v3', 'bulbul:v2'];
+const TTS_LANGUAGES = ['en-IN', 'hi-IN', 'ta-IN', 'te-IN', 'bn-IN', 'gu-IN', 'kn-IN', 'ml-IN', 'mr-IN', 'od-IN', 'pa-IN'];
 /* All Sarvam Bulbul voices. V3 list first, then the seven v2-only voices. */
 const SPEAKERS = ['shubh', 'aditya', 'ritu', 'priya', 'neha', 'rahul', 'pooja', 'rohan', 'simran', 'kavya', 'amit', 'dev', 'ishita', 'shreya', 'ratan', 'varun', 'manan', 'sumit', 'roopa', 'kabir', 'aayan', 'ashutosh', 'advait', 'anand', 'tanya', 'tarun', 'sunny', 'mani', 'gokul', 'vijay', 'shruti', 'suhani', 'mohit', 'kavitha', 'rehan', 'soham', 'rupali', 'anushka', 'abhilash', 'manisha', 'vidya', 'arya', 'karun', 'hitesh'];
 const V2_VOICES = ['anushka', 'abhilash', 'manisha', 'vidya', 'arya', 'karun', 'hitesh'];
@@ -676,7 +677,8 @@ function buildAgentForm(existing) {
   const state = {
     model: normalizeModel(tts.model),
     speaker: tts.speaker || 'shubh',
-    f0: tts.f0_up_key != null ? tts.f0_up_key : 0
+    f0: tts.f0_up_key != null ? tts.f0_up_key : 0,
+    language: tts.language || 'en-IN'
   };
 
   const nameI = el('input', { class: 'input', id: 'f_name', type: 'text', value: e.name || '', placeholder: 'Front Desk', maxlength: 80 });
@@ -698,6 +700,9 @@ function buildAgentForm(existing) {
   const f0Val = el('span', { class: 'rv', id: 'f_f0_val' }, String(state.f0));
   const f0Range = el('input', { type: 'range', id: 'f_f0', min: -12, max: 12, step: 1, value: state.f0, oninput: (ev) => { state.f0 = +ev.target.value; f0Val.textContent = (state.f0 > 0 ? '+' : '') + state.f0; } });
   if (state.f0 > 0) f0Val.textContent = '+' + state.f0;
+
+  const langSel = el('select', { class: 'select', id: 'f_lang' }, TTS_LANGUAGES.map((lc) => el('option', { value: lc, selected: state.language === lc ? 'selected' : false }, lc)));
+  langSel.addEventListener('change', () => { state.language = langSel.value; });
 
   const didSel = el('select', { class: 'select', id: 'f_did' }, [el('option', { value: '' }, 'No number assigned')]);
   if (e.telephony && e.telephony.did) { /* set after dids load */ setTimeout(() => { try { didSel.value = e.telephony.did; } catch (x) {} }, 0); }
@@ -721,6 +726,7 @@ function buildAgentForm(existing) {
       (function () { const f = field('Greeting', greetI); f.classList.add('full'); return f; })(),
       field('Voice model', modelSeg),
       field('Pitch, f0_up_key', el('div', { class: 'range-row' }, [f0Range, f0Val])),
+      field('Language', langSel),
       speakerField,
       descField
     ]),
@@ -749,7 +755,7 @@ function buildAgentForm(existing) {
       greeting: greetI.value.trim(),
       did: didSel.value || '',
       variables: variablesI.value.split(',').map((v) => v.trim()).filter(Boolean),
-      tts: { model: state.model, speaker: state.speaker, f0_up_key: state.f0, description: descI.value.trim() }
+      tts: { model: state.model, speaker: state.speaker, f0_up_key: state.f0, description: descI.value.trim(), language: state.language }
     };
     try {
       if (existing) {
@@ -793,7 +799,7 @@ function paintAgents() {
 
 function agentCard(a) {
   const tts = a.tts || {};
-  const voiceLine = normalizeModel(tts.model || 'bulbul:v3') + ' / ' + (tts.speaker || 'speaker') + (tts.f0_up_key ? ' / pitch ' + (tts.f0_up_key > 0 ? '+' : '') + tts.f0_up_key : '');
+  const voiceLine = normalizeModel(tts.model || 'bulbul:v3') + ' / ' + (tts.speaker || 'speaker') + (tts.language ? ' / ' + tts.language : '') + (tts.f0_up_key ? ' / pitch ' + (tts.f0_up_key > 0 ? '+' : '') + tts.f0_up_key : '');
   const did = a.telephony && a.telephony.did ? a.telephony.did : null;
 
   const previewBtn = el('button', { class: 'btn btn-ghost btn-sm' }, 'Preview voice');
@@ -812,7 +818,8 @@ function agentCard(a) {
     ...((Array.isArray(a.variables) && a.variables.length) ? [el('div', { class: 'ac-meta' }, a.variables.map((v) => el('span', { class: 'tag' }, v)))] : []),
     el('div', { class: 'ac-meta' }, [
       did ? el('span', { class: 'tag' }, did) : el('span', { class: 'tag' }, 'no number'),
-      el('span', { class: 'tag' }, normalizeModel(tts.model || 'bulbul:v3'))
+      el('span', { class: 'tag' }, normalizeModel(tts.model || 'bulbul:v3')),
+      el('span', { class: 'tag' }, tts.language || 'en-IN')
     ]),
     el('div', { class: 'ac-actions' }, [
       previewBtn,
@@ -828,7 +835,7 @@ async function previewAgentVoice(a, btn) {
   const old = btn.textContent;
   btn.disabled = true; btn.textContent = 'Synthesizing...';
   try {
-    const body = { text, model: normalizeModel(tts.model), speaker: tts.speaker, f0_up_key: tts.f0_up_key, description: tts.description };
+    const body = { text, model: normalizeModel(tts.model), speaker: tts.speaker, f0_up_key: tts.f0_up_key, description: tts.description, language: tts.language };
     const res = await api('/api/tts', { method: 'POST', body: body });
     const buf = await res.arrayBuffer();
     const url = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
@@ -881,7 +888,7 @@ function field(label, input) { return el('div', { class: 'field' }, [el('label',
 function viewStudio(root) {
   root.appendChild(viewHead('Voice Studio', 'Type anything, pick a model, and synthesize. See the waveform, hear it back, and watch the cost in real time.'));
 
-  const st = { model: 'bulbul:v3', tone: 'neutral', speaker: 'shubh', f0: 0, stream: false };
+  const st = { model: 'bulbul:v3', tone: 'neutral', speaker: 'shubh', f0: 0, stream: false, language: 'en-IN' };
 
   const textArea = el('textarea', { class: 'textarea studio-text', id: 's_text', placeholder: 'Welcome to RapidX Voice. Production-grade AI voice starts from ₹1 per minute for the AI layer.' }, 'Welcome to RapidX Voice. Production-grade AI voice starts from ₹1 per minute for the AI layer.');
 
@@ -904,6 +911,8 @@ function viewStudio(root) {
   const f0Range = el('input', { type: 'range', min: -12, max: 12, step: 1, value: 0, oninput: (ev) => { st.f0 = +ev.target.value; f0Val.textContent = (st.f0 > 0 ? '+' : '') + st.f0; } });
   const descI = el('input', { class: 'input', placeholder: 'Optional voice direction, e.g. warm and reassuring' });
   descI.addEventListener('input', () => { st.desc = descI.value; });
+  const langSel = el('select', { class: 'select', id: 's_lang' }, TTS_LANGUAGES.map((lc) => el('option', { value: lc, selected: lc === st.language ? 'selected' : false }, lc)));
+  langSel.addEventListener('change', () => { st.language = langSel.value; });
 
   const bulbulV2Ctl = field('Tone (bulbul:v2)', toneSeg);
   const bulbulV3Speaker = field('Voice', speakerSel);
@@ -952,6 +961,7 @@ function viewStudio(root) {
     el('div', { class: 'card card-pad' }, [
       el('h3', { class: 't-h3', style: 'margin-bottom:14px' }, 'Voice'),
       field('Model', modelSeg),
+      field('Language', langSel),
       bulbulV2Ctl, bulbulV3Speaker, bulbulV3Pitch, bulbulV3Desc
     ]),
     el('div', { class: 'card card-pad' }, [
@@ -994,6 +1004,7 @@ async function doSynthesize(st, textArea, btn, audioEl, canvas, playerRow) {
     if (st.model === 'bulbul:v2' || st.model === 'bulbul:v3') {
       body.speaker = st.speaker;
       body.f0_up_key = st.f0;
+      if (st.language) body.language = st.language;
       if (st.model === 'bulbul:v3' && st.desc) body.description = st.desc;
     }
     const res = await api('/api/tts', { method: 'POST', body: body });

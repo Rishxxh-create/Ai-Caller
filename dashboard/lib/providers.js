@@ -137,7 +137,8 @@ function resolveTtsConfig(agent) {
   else if (TTS_VOICES_V2.has(raw)) voice = raw;
   else if (SPEAKER_PRESETS[raw]) voice = SPEAKER_PRESETS[raw];
   else voice = 'shubh';
-  return { model: TTS_VOICES_V2.has(voice) ? 'bulbul:v2' : 'bulbul:v3', voice };
+  const language = TTS_LANGUAGES.has(tts.language) ? tts.language : (TTS_LANGUAGES.has(process.env.SARVAM_TTS_LANGUAGE) ? process.env.SARVAM_TTS_LANGUAGE : 'en-IN');
+  return { model: TTS_VOICES_V2.has(voice) ? 'bulbul:v2' : 'bulbul:v3', voice, language };
 }
 
 function sarvamLanguage(requested) {
@@ -791,6 +792,6 @@ module.exports = {
   stt, tts, llm, telephony,
   dograhOrg,
   sarvamVoice, resolveTtsConfig,
-  MAX_TEXT, TTS_MODELS, TTS_SPEAKERS, TTS_VOICES_V2, TTS_VOICES_V3, SPEAKER_PRESETS, TTS_ALL_VOICES,
+  MAX_TEXT, TTS_MODELS, TTS_SPEAKERS, TTS_VOICES_V2, TTS_VOICES_V3, SPEAKER_PRESETS, TTS_ALL_VOICES, TTS_LANGUAGES,
   BROWSER_UA, MODEL_ID_RE,
 };

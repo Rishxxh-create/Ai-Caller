@@ -55,6 +55,7 @@
         <div class="form-row" style="display:flex;gap:8px">
           <select id="nModel" class="select"><option value="bulbul:v3">bulbul:v3 (expressive)</option><option value="bulbul:v2">bulbul:v2 (fast)</option></select>
           <select id="nSpeaker" class="select"><option>shubh</option><option>aditya</option><option>ritu</option><option>priya</option><option>neha</option><option>rahul</option><option>pooja</option><option>rohan</option><option>simran</option><option>kavya</option><option>amit</option><option>dev</option><option>ishita</option><option>shreya</option><option>ratan</option><option>varun</option><option>manan</option><option>sumit</option><option>roopa</option><option>kabir</option></select>
+          <select id="nLang" class="select"><option value="en-IN">English (IN)</option><option value="hi-IN">Hindi</option><option value="bn-IN">Bengali</option><option value="gu-IN">Gujarati</option><option value="kn-IN">Kannada</option><option value="ml-IN">Malayalam</option><option value="mr-IN">Marathi</option><option value="od-IN">Odia</option><option value="pa-IN">Punjabi</option><option value="ta-IN">Tamil</option><option value="te-IN">Telugu</option></select>
         </div>
         <button id="createBtn" class="btn btn-primary btn-sm" style="width:100%">Create agent</button>
       </div>
@@ -142,7 +143,7 @@ function renderAgents(){
   if(!agents.length){ box.innerHTML='<div class="mini" style="text-align:center;padding:14px 0">No agents yet.</div>'; return; }
   agents.forEach(a=>{
     const d=document.createElement('div'); d.className='agent-item'+(selected&&selected.id===a.id?' sel':'');
-    d.innerHTML='<div class="an">'+a.name+'</div><div class="av">'+a.model+' · '+(String(a.model).startsWith('bulbul')?a.speaker:'tone')+'</div>';
+    d.innerHTML='<div class="an">'+a.name+'</div><div class="av">'+((a.tts||{}).model||'bulbul:v3')+' · '+(((a.tts||{}).model||'').startsWith('bulbul')?(a.tts||{}).speaker:'tone')+'</div>';
     d.onclick=()=>{ selected=a; renderAgents(); renderDetail(); }; box.appendChild(d);
   });
 }
@@ -150,18 +151,18 @@ function renderDetail(){
   if(!selected){ $('#emptyPick').hidden=false; $('#agentDetail').hidden=true; return; }
   $('#emptyPick').hidden=true; $('#agentDetail').hidden=false;
   $('#aName').textContent=selected.name;
-  $('#aVoice').textContent='voice: Sarvam '+selected.model+(String(selected.model).startsWith('bulbul')?' · '+selected.speaker:'')+'  ·  id '+selected.id;
+  $('#aVoice').textContent='voice: Sarvam '+((selected.tts||{}).model||'bulbul:v3')+' · '+((selected.tts||{}).speaker||'')+' · '+((selected.tts||{}).language||'en-IN')+'  ·  id '+selected.id;
   $('#chat').innerHTML='<div class="mini" style="margin:auto">Type to the agent. It replies in its Sarvam voice.</div>';
 }
 
 $('#mintBtn').onclick=async()=>{
-  const demo={ name:'Demo Agent '+(agents.length+1), persona:'You are RapidX, a friendly demo voice agent. Reply in one or two short spoken sentences, upbeat and human.', greeting:'Hey! This is your RapidX demo agent, minted out of thin air. Ask me anything.', model:'bulbul:v3', speaker:'shubh' };
+  const demo={ name:'Demo Agent '+(agents.length+1), persona:'You are RapidX, a friendly demo voice agent. Reply in one or two short spoken sentences, upbeat and human.', greeting:'Hey! This is your RapidX demo agent, minted out of thin air. Ask me anything.', tts:{ model:'bulbul:v3', speaker:'shubh', language:'en-IN' } };
   const r=await(await fetch('/api/agents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(demo)})).json();
   await loadAgents(); selected=r.agent; renderAgents(); renderDetail();
 };
 $('#newBtn').onclick=()=>{ $('#newForm').hidden=!$('#newForm').hidden; };
 $('#createBtn').onclick=async()=>{
-  const body={ name:$('#nName').value, persona:$('#nPersona').value, greeting:$('#nGreeting').value, model:$('#nModel').value, speaker:$('#nSpeaker').value };
+  const body={ name:$('#nName').value, persona:$('#nPersona').value, greeting:$('#nGreeting').value, tts:{ model:$('#nModel').value, speaker:$('#nSpeaker').value, language:$('#nLang').value } };
   const r=await(await fetch('/api/agents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
   $('#newForm').hidden=true; await loadAgents(); selected=r.agent; renderAgents(); renderDetail();
 };

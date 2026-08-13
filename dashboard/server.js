@@ -185,6 +185,7 @@ function migrateLegacyAgent(legacy, tenantId) {
       model,
       speaker,
       f0_up_key: Number.isFinite(legacy.f0_up_key) ? legacy.f0_up_key : 0,
+      language: providers.TTS_LANGUAGES.has(legacy.tts && legacy.tts.language) ? legacy.tts.language : 'en-IN',
     },
     greeting: String(legacy.greeting || '').slice(0, 300),
     telephony: { did: String(legacy.did || providers.telephony.did) },
@@ -507,13 +508,14 @@ async function apiAgentsCreate(req, res, ctx) {
   const model = normalizeTtsModel(ttsIn.model);
   const speaker = providers.TTS_ALL_VOICES.has(ttsIn.speaker) ? ttsIn.speaker : 'shubh';
   const f0 = Number.isFinite(ttsIn.f0_up_key) ? Math.max(-12, Math.min(12, ttsIn.f0_up_key | 0)) : 0;
+  const language = providers.TTS_LANGUAGES.has(ttsIn.language) ? ttsIn.language : 'en-IN';
 
   const agent = {
     id: core.genId('ag_'),
     tenantId: ctx.tenant.id,
     name: String(b.name || (preset && preset.name) || 'Untitled Agent').slice(0, 60),
     persona: String(b.persona || (preset ? `${preset.name}. Collect: ${preset.fields.join(', ')}. Guardrails: ${preset.guardrails.join('; ')}.` : '')).slice(0, PERSONA_MAX),
-    tts: { provider: providers.tts.id, model, speaker, f0_up_key: f0 },
+    tts: { provider: providers.tts.id, model, speaker, f0_up_key: f0, language },
     greeting: String(b.greeting || (preset && preset.greeting) || '').slice(0, 300),
     presetId: preset ? preset.id : null,
     telephony: { did: String(b.did || providers.telephony.did).replace(/[^0-9]/g, '') || providers.telephony.did },
@@ -550,6 +552,8 @@ async function apiAgentsUpdate(req, res, ctx) {
       if (b.tts.model != null) t.model = normalizeTtsModel(b.tts.model);
       if (providers.TTS_ALL_VOICES.has(b.tts.speaker)) t.speaker = b.tts.speaker;
       if (Number.isFinite(b.tts.f0_up_key)) t.f0_up_key = Math.max(-12, Math.min(12, b.tts.f0_up_key | 0));
+      if (providers.TTS_LANGUAGES.has(b.tts.language)) t.language = b.tts.language;
+      if (!t.language) t.language = 'en-IN';
       t.provider = providers.tts.id;
       a.tts = t;
     }
@@ -838,6 +842,7 @@ async function apiTts(req, res, ctx) {
       speaker: b.speaker,
       f0_up_key: b.f0_up_key,
       description: b.description,
+      language: b.language,
     });
     // Count usage only on a real synthesis.
     bumpUsage(ctx.tenant.id, 'chars', out.chars).catch(() => {});
