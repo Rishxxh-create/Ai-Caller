@@ -143,13 +143,16 @@ function agentLanguageLabel(agent) {
 // people actually speak on Indian phone calls.
 function speechLanguageBlock(agent) {
   const lang = agent && agent.tts && agent.tts.language;
+  const numbers = 'Always write numbers as English words in your reply text, never as digits. ' +
+    "Write 'twenty five' instead of '25', and read phone numbers digit by digit as English words " +
+    "like 'nine one four five'.";
   if (lang === 'hinglish') {
     return '# LANGUAGE\nReply in Hinglish: blend Hindi and English naturally in every answer, ' +
-      'switching between the two as people do on Indian phone calls. Keep numbers, names, and ' +
-      'business terms in English.';
+      'switching between the two as people do on Indian phone calls. Keep names and business terms ' +
+      'in English. ' + numbers;
   }
   const label = agentLanguageLabel(agent);
-  return '# LANGUAGE\nReply in ' + label + ' unless the caller clearly prefers another language.';
+  return '# LANGUAGE\nReply in ' + label + ' unless the caller clearly prefers another language. ' + numbers;
 }
 
 // The full system prompt for the web chat brain: persona, speech language, and

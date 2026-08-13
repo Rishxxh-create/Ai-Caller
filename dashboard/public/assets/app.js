@@ -53,6 +53,15 @@ const TTS_LANGUAGES = ['en-IN', 'hi-IN', 'hinglish', 'ta-IN', 'te-IN', 'bn-IN', 
 /* Friendly names for the language select, e.g. "English", "Hindi". */
 const LANG_LABELS = { 'en-IN': 'English', 'hi-IN': 'Hindi', 'hinglish': 'Hinglish', 'ta-IN': 'Tamil', 'te-IN': 'Telugu', 'bn-IN': 'Bengali', 'gu-IN': 'Gujarati', 'kn-IN': 'Kannada', 'ml-IN': 'Malayalam', 'mr-IN': 'Marathi', 'od-IN': 'Odia', 'pa-IN': 'Punjabi' };
 function langLabel(code) { return LANG_LABELS[code] || code || 'English'; }
+/* Convert numerals to English words so the voice always reads numbers in
+   English, even in Hindi or Hinglish mode. Mirrors lib/numbers.js. */
+const _NUM_SMALL = ['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+const _NUM_TENS = ['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+function _numBelow100(n) { return n < 20 ? _NUM_SMALL[n] : _NUM_TENS[Math.floor(n / 10)] + (n % 10 ? ' ' + _NUM_SMALL[n % 10] : ''); }
+function _numBelow1000(n) { const h = Math.floor(n / 100), r = n % 100; return h ? _NUM_SMALL[h] + ' hundred' + (r ? ' and ' + _numBelow100(r) : '') : _numBelow100(r); }
+function _intToEnglish(n) { if (!Number.isFinite(n)) return ''; n = Math.floor(Math.abs(n)); if (n === 0) return 'zero'; const c = Math.floor(n / 10000000), l = Math.floor((n % 10000000) / 100000), t = Math.floor((n % 100000) / 1000), r = n % 1000, p = []; if (c) p.push(_intToEnglish(c) + ' crore'); if (l) p.push(_intToEnglish(l) + ' lakh'); if (t) p.push(_intToEnglish(t) + ' thousand'); if (r) p.push(_numBelow1000(r)); return p.join(' '); }
+function _numToWords(raw, isCurrency) { const clean = String(raw).replace(/,/g, ''); const dot = clean.indexOf('.'); let w; if (dot !== -1) { const i = clean.slice(0, dot) || '0', f = clean.slice(dot + 1); w = _intToEnglish(parseInt(i, 10) || 0); if (f && /\d/.test(f)) w += ' point ' + f.split('').map((ch) => (ch === '.' ? 'point' : /\d/.test(ch) ? _NUM_SMALL[+ch] : '')).join(' '); } else { const d = clean.replace(/\D/g, ''); w = d.length >= 7 ? d.split('').map((ch) => _NUM_SMALL[+ch]).join(' ') : _intToEnglish(parseInt(d, 10) || 0); } return isCurrency ? w + ' rupees' : w; }
+function numbersToEnglishWords(text) { let s = String(text == null ? '' : text); s = s.replace(/(?:₹|(?<![A-Za-z])Rs\.?|(?<![A-Za-z])INR)\s*(\d[\d,]*(?:\.\d+)?)/g, (m, num) => _numToWords(num, true)); s = s.replace(/(?<![A-Za-z0-9_])(\d[\d,]*(?:\.\d+)?)(st|nd|rd|th)?\s?%?(?![A-Za-z0-9_])/g, (m, num, ord) => { const clean = num.replace(/,/g, ''); if (ord) { const words = _intToEnglish(parseInt(clean, 10) || 0).split(' '); const map = { one:'first', two:'second', three:'third', five:'fifth', eight:'eighth', nine:'ninth', twelve:'twelfth', twenty:'twentieth', thirty:'thirtieth', forty:'fortieth', fifty:'fiftieth', sixty:'sixtieth', seventy:'seventieth', eighty:'eightieth', ninety:'ninetieth', hundred:'hundredth', thousand:'thousandth' }; words[words.length - 1] = map[words[words.length - 1]] || words[words.length - 1] + 'th'; return words.join(' '); } const tail = m.endsWith('%') ? ' percent' : ''; return _numToWords(num, false) + tail; }); return s; }
 /* All Sarvam Bulbul voices. V3 list first, then the seven v2-only voices. */
 const SPEAKERS = ['shubh', 'aditya', 'ritu', 'priya', 'neha', 'rahul', 'pooja', 'rohan', 'simran', 'kavya', 'amit', 'dev', 'ishita', 'shreya', 'ratan', 'varun', 'manan', 'sumit', 'roopa', 'kabir', 'aayan', 'ashutosh', 'advait', 'anand', 'tanya', 'tarun', 'sunny', 'mani', 'gokul', 'vijay', 'shruti', 'suhani', 'mohit', 'kavitha', 'rehan', 'soham', 'rupali', 'anushka', 'abhilash', 'manisha', 'vidya', 'arya', 'karun', 'hitesh'];
 const V2_VOICES = ['anushka', 'abhilash', 'manisha', 'vidya', 'arya', 'karun', 'hitesh'];
@@ -1222,6 +1231,7 @@ function roundRect(ctx, x, y, w, h, r) {
 
 /* ---- streaming TTS (PCM int16 LE 24kHz) via /api/ws-connect then wss Sarvam ---- */
 async function streamSynthesize(text, st, canvas, btn) {
+  text = numbersToEnglishWords(text);
   const mint = await api('/api/ws-connect', { method: 'POST', body: { text: text, model: st.model } });
   if (!mint.ws_url) throw new ApiError(0, 'No ws_url returned.');
   return new Promise((resolve, reject) => {
@@ -2065,6 +2075,7 @@ async function viewTalkLegacy(root) {
   }
 
   async function speakReply(text, agent) {
+    text = numbersToEnglishWords(text);
     const tts = agent.tts || {};
     const ttsStarted = performance.now();
     try {

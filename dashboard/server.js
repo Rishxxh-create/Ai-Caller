@@ -25,6 +25,7 @@ const agentWorkflow = require('./lib/agent-workflow');
 const providers = require('./lib/providers');
 const payu = require('./lib/payu');
 const demoLinks = require('./lib/demo-links');
+const numbers = require('./lib/numbers');
 
 const PORT = parseInt(process.env.PORT || '8787', 10);
 const DEFAULT_PROVIDERS = Object.freeze({
@@ -905,7 +906,7 @@ async function apiTts(req, res, ctx) {
   try {
     const selected = providers.resolveSelection('tts', { provider: b.provider, model: b.model });
     const out = await selected.adapter.synthesize({
-      text: b.text,
+      text: numbers.numbersToEnglishWords(b.text),
       model: selected.model,
       speaker: b.speaker,
       f0_up_key: b.f0_up_key,
