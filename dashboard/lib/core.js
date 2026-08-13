@@ -192,7 +192,12 @@ function htmlEscape(s) {
      bug we are preventing: each write reads-modifies-writes under the lock).
    ========================================================================== */
 
-const DATA_DIR = path.join(ROOT, 'data');
+// Vercel Functions have a read-only filesystem except /tmp. Until the Upstash
+// Redis backend is configured, the file store falls back to a writable /tmp
+// scratch file there so writes do not crash the deploy. Data in /tmp is
+// per-instance and lost on cold starts, so configure the Redis store for real
+// persistence on Vercel.
+const DATA_DIR = process.env.VERCEL === '1' ? '/tmp' : path.join(ROOT, 'data');
 const DB_FILE = process.env.RAPIDX_DB_FILE ? path.resolve(process.env.RAPIDX_DB_FILE) : path.join(DATA_DIR, 'db.json');
 const DB_TMP = `${DB_FILE}.tmp`;
 

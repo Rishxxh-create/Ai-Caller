@@ -1,0 +1,6 @@
+.env
+.env.*
+data/
+*.log
+_legacy/
+test/
