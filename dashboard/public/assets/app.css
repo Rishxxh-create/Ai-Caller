@@ -222,6 +222,8 @@
 .builder .hint { color: var(--ink-dim); font-size: 0.85rem; margin-bottom: 18px; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .form-grid .full { grid-column: 1 / -1; }
+.sett-group { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); }
+.sett-group > label { display: block; font-size: 0.82rem; color: var(--ink-dim); font-weight: 500; letter-spacing: -0.01em; margin-bottom: 10px; }
 .range-row { display: flex; align-items: center; gap: 14px; }
 .range-row input[type="range"] { flex: 1; accent-color: var(--accent); height: 4px; }
 .range-row .rv {

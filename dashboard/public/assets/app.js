@@ -50,6 +50,9 @@ const State = {
 
 const VOICE_MODELS = ['bulbul:v3', 'bulbul:v2'];
 const TTS_LANGUAGES = ['en-IN', 'hi-IN', 'ta-IN', 'te-IN', 'bn-IN', 'gu-IN', 'kn-IN', 'ml-IN', 'mr-IN', 'od-IN', 'pa-IN'];
+/* Friendly names for the language select, e.g. "English", "Hindi". */
+const LANG_LABELS = { 'en-IN': 'English', 'hi-IN': 'Hindi', 'ta-IN': 'Tamil', 'te-IN': 'Telugu', 'bn-IN': 'Bengali', 'gu-IN': 'Gujarati', 'kn-IN': 'Kannada', 'ml-IN': 'Malayalam', 'mr-IN': 'Marathi', 'od-IN': 'Odia', 'pa-IN': 'Punjabi' };
+function langLabel(code) { return LANG_LABELS[code] || code || 'English'; }
 /* All Sarvam Bulbul voices. V3 list first, then the seven v2-only voices. */
 const SPEAKERS = ['shubh', 'aditya', 'ritu', 'priya', 'neha', 'rahul', 'pooja', 'rohan', 'simran', 'kavya', 'amit', 'dev', 'ishita', 'shreya', 'ratan', 'varun', 'manan', 'sumit', 'roopa', 'kabir', 'aayan', 'ashutosh', 'advait', 'anand', 'tanya', 'tarun', 'sunny', 'mani', 'gokul', 'vijay', 'shruti', 'suhani', 'mohit', 'kavitha', 'rehan', 'soham', 'rupali', 'anushka', 'abhilash', 'manisha', 'vidya', 'arya', 'karun', 'hitesh'];
 const V2_VOICES = ['anushka', 'abhilash', 'manisha', 'vidya', 'arya', 'karun', 'hitesh'];
@@ -454,20 +457,24 @@ function currentRoute() {
 }
 function onRoute() {
   if (!State.me) return;
+  const raw = (location.hash || '').replace(/^#\/?/, '').split('?')[0];
+  const isNewAgent = raw === 'agents/new';
   const id = currentRoute();
-  $$('.nav a').forEach((a) => a.classList.toggle('active', a.getAttribute('data-route') === id));
+  const navId = isNewAgent ? 'agents' : id;
+  $$('.nav a').forEach((a) => a.classList.toggle('active', a.getAttribute('data-route') === navId));
   const r = ROUTES.find((x) => x.id === id);
-  const tt = $('#routeTitle'); if (tt) tt.textContent = r ? r.label : 'Overview';
+  const tt = $('#routeTitle'); if (tt) tt.textContent = isNewAgent ? 'Create agent' : (r ? r.label : 'Overview');
   $('.shell') && $('.shell').classList.remove('nav-open');
   const view = $('#view');
   view.innerHTML = '';
   const wrap = el('div', { class: 'view' });
   view.appendChild(wrap);
-  ({
+  const views = {
     overview: viewOverview, agents: viewAgents, knowledge: viewKnowledge, presets: viewPresets, studio: viewStudio, demos: viewDemoLinks,
     talk: viewTalk, telephony: viewTelephony, billing: viewBilling,
     support: viewSupport, admin: viewAdmin, settings: viewSettings
-  }[id] || viewOverview)(wrap);
+  };
+  (isNewAgent ? viewAgentNew : (views[id] || viewOverview))(wrap);
 }
 function goto(id) { location.hash = '#/' + id; }
 
@@ -640,7 +647,7 @@ async function ensureTelephony(force) {
 async function viewAgents(root) {
   root.appendChild(el('div', { style: 'display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap' }, [
     viewHead('Agents', 'Each agent is a persona plus a voice. Preview the voice, then assign a number and ship it.'),
-    el('button', { class: 'btn btn-primary', onclick: openCreateAgent }, 'Create Agent')
+    el('button', { class: 'btn btn-primary', onclick: () => goto('agents/new') }, 'Create Agent')
   ]));
 
   const gridHost = el('div', { id: 'agentsGrid', class: 'agents-grid', style: 'margin-top:22px' }, skeleton('sk-card', 3));
@@ -653,6 +660,20 @@ async function viewAgents(root) {
   } catch (e) {
     gridHost.innerHTML = '';
     gridHost.appendChild(el('div', { class: 'empty muted' }, 'Could not load agents. ' + esc(e.message)));
+  }
+}
+
+async function viewAgentNew(root) {
+  root.appendChild(el('div', { style: 'display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap' }, [
+    viewHead('Create agent', 'Set up the persona and voice, then tune language, pronunciation, and knowledge in Settings.'),
+    el('button', { class: 'btn btn-ghost', onclick: () => goto('agents') }, 'Back to agents')
+  ]));
+  try {
+    await Promise.all([ensureTelephony().catch(() => null), ensureProviders().catch(() => null)]);
+    root.appendChild(buildAgentForm(null));
+    setTimeout(refillDidOptions, 0);
+  } catch (e) {
+    root.appendChild(el('div', { class: 'empty muted' }, 'Could not load the builder. ' + esc(e.message)));
   }
 }
 
@@ -673,7 +694,6 @@ function refillDidOptions() {
 function buildAgentForm(existing) {
   const e = existing || {};
   const tts = e.tts || {};
-  const card = el('div', { class: 'card builder' });
   const state = {
     model: normalizeModel(tts.model),
     speaker: tts.speaker || 'shubh',
@@ -701,7 +721,7 @@ function buildAgentForm(existing) {
   const f0Range = el('input', { type: 'range', id: 'f_f0', min: -12, max: 12, step: 1, value: state.f0, oninput: (ev) => { state.f0 = +ev.target.value; f0Val.textContent = (state.f0 > 0 ? '+' : '') + state.f0; } });
   if (state.f0 > 0) f0Val.textContent = '+' + state.f0;
 
-  const langSel = el('select', { class: 'select', id: 'f_lang' }, TTS_LANGUAGES.map((lc) => el('option', { value: lc, selected: state.language === lc ? 'selected' : false }, lc)));
+  const langSel = el('select', { class: 'select', id: 'f_lang' }, TTS_LANGUAGES.map((lc) => el('option', { value: lc, selected: state.language === lc ? 'selected' : false }, langLabel(lc))));
   langSel.addEventListener('change', () => { state.language = langSel.value; });
 
   const didSel = el('select', { class: 'select', id: 'f_did' }, [el('option', { value: '' }, 'No number assigned')]);
@@ -716,31 +736,123 @@ function buildAgentForm(existing) {
     descField.style.display = state.model === 'bulbul:v3' ? '' : 'none';
   }
 
+  /* ---- pronunciation dictionary (JSON file only) ---- */
+  let pronoWords = {};
+  try { pronoWords = (e.pronunciations && typeof e.pronunciations === 'object' && !Array.isArray(e.pronunciations)) ? e.pronunciations : {}; } catch (x) {}
+  const pronoInfo = el('div', { class: 'hint' });
+  const clearPronoBtn = el('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: () => { pronoWords = {}; paintProno(); toast('Pronunciation dictionary cleared.', 'ok'); } }, 'Clear');
+  const pronoFile = el('input', { type: 'file', id: 'f_prono_file', class: 'input', style: 'max-width:320px', accept: '.json,application/json' });
+  function paintProno() {
+    const keys = Object.keys(pronoWords);
+    clearPronoBtn.disabled = !keys.length;
+    pronoInfo.textContent = keys.length
+      ? keys.length + ' entries loaded (e.g. ' + keys.slice(0, 3).join(', ') + '). Only .json files are accepted.'
+      : 'Only .json files are accepted, e.g. { "RapidX": "rap-id-x", "Qatar": "ku-ter" }.';
+  }
+  pronoFile.addEventListener('change', () => {
+    const file = pronoFile.files && pronoFile.files[0];
+    if (!file) return;
+    if (!/\.json$/i.test(file.name)) { toast('Only JSON files are accepted.', 'err'); pronoFile.value = ''; return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const obj = JSON.parse(reader.result);
+        let rawWords = {};
+        if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+          if (Array.isArray(obj.entries)) rawWords = Object.fromEntries(obj.entries.filter((x) => x && x.word != null && x.pronunciation != null).map((x) => [String(x.word), String(x.pronunciation)]));
+          else rawWords = obj;
+        } else {
+          throw new Error('expected a JSON object of words to pronunciations');
+        }
+        const clean = {};
+        for (const k of Object.keys(rawWords)) {
+          if (Object.keys(clean).length >= 500) break;
+          const v = rawWords[k];
+          if (typeof v !== 'string' && typeof v !== 'number') continue;
+          clean[k.slice(0, 200)] = String(v).slice(0, 500);
+        }
+        pronoWords = clean;
+        paintProno();
+        toast('Pronunciation dictionary loaded (' + Object.keys(clean).length + ' entries).', 'ok');
+      } catch (err) {
+        toast('Invalid JSON: ' + err.message, 'err');
+      }
+      pronoFile.value = '';
+    };
+    reader.readAsText(file);
+  });
+  paintProno();
+
+  /* ---- knowledge base (facts) ---- */
+  const factsDraft = ((e.knowledge && e.knowledge.facts) || []).map((f) => ({ id: f.id, title: f.title || '', content: f.content || '' }));
+  const factsList = el('div', { class: 'kfacts', style: 'margin-top:10px' });
+  function paintFacts() {
+    factsList.innerHTML = '';
+    if (!factsDraft.length) {
+      factsList.appendChild(el('div', { class: 'empty muted', style: 'padding:14px' }, 'No knowledge yet. Add a titled fact below, e.g. pricing or opening hours.'));
+      return;
+    }
+    factsDraft.forEach((f, i) => {
+      const titleI = el('input', { class: 'input', value: f.title, placeholder: 'Short title, e.g. Pricing', maxlength: 120, oninput: (ev) => { f.title = ev.target.value; } });
+      const contentI = el('textarea', { class: 'textarea', rows: 3, value: f.content, placeholder: 'What the agent should know.', maxlength: 6000, oninput: (ev) => { f.content = ev.target.value; } });
+      factsList.appendChild(el('div', { class: 'card' }, [
+        el('div', { class: 'flex', style: 'justify-content:space-between;align-items:center;margin-bottom:10px' }, [
+          el('b', {}, 'Fact ' + (i + 1)),
+          el('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: () => { factsDraft.splice(i, 1); paintFacts(); } }, 'Remove')
+        ]),
+        el('div', { class: 'form-grid' }, [
+          field('Title', titleI),
+          (function () { const f2 = field('Content', contentI); f2.classList.add('full'); return f2; })()
+        ])
+      ]));
+    });
+  }
+  paintFacts();
+  const addFactBtn = el('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: () => { factsDraft.push({ id: 'kf_' + Math.random().toString(36).slice(2, 10), title: '', content: '' }); paintFacts(); } }, '+ Add fact');
+
   const submitBtn = el('button', { class: 'btn btn-primary' }, existing ? 'Save changes' : 'Create agent');
-  const form = el('form', { onsubmit: onSave }, [
-    el('div', { class: 'form-grid' }, [
-      field('Agent name', nameI),
-      field('Assigned number', didSel),
-      (function () { const f = field('Persona', personaI); f.classList.add('full'); return f; })(),
-      (function () { const f = field('Variables to collect', variablesI); f.classList.add('full'); f.appendChild(el('p', { class: 'hint' }, 'Comma-separated fields the agent should collect on the call. Each collected value is stored with the call.')); return f; })(),
-      (function () { const f = field('Greeting', greetI); f.classList.add('full'); return f; })(),
-      field('Voice model', modelSeg),
-      field('Pitch, f0_up_key', el('div', { class: 'range-row' }, [f0Range, f0Val])),
-      field('Language', langSel),
-      speakerField,
-      descField
+  const form = el('form', { onsubmit: onSave, class: 'stack col', style: 'gap:16px' }, [
+    el('div', { class: 'card builder' }, [
+      el('h3', {}, existing ? 'Edit agent' : 'New agent'),
+      el('p', { class: 'hint' }, existing ? 'Update the persona, voice, or settings.' : 'Set up the basics, then tune voice and knowledge in Settings.'),
+      el('div', { class: 'form-grid' }, [
+        field('Agent name', nameI),
+        field('Assigned number', didSel),
+        (function () { const f = field('Persona', personaI); f.classList.add('full'); return f; })(),
+        (function () { const f = field('Variables to collect', variablesI); f.classList.add('full'); f.appendChild(el('p', { class: 'hint' }, 'Comma-separated fields the agent should collect on the call. Each collected value is stored with the call.')); return f; })(),
+        (function () { const f = field('Greeting', greetI); f.classList.add('full'); return f; })()
+      ])
     ]),
-    el('div', { class: 'flex gap-2', style: 'margin-top:18px;align-items:center' }, [submitBtn, existing ? el('button', { type: 'button', class: 'btn btn-ghost', onclick: () => modalClose() }, 'Cancel') : null])
+    el('div', { class: 'card builder' }, [
+      el('h3', {}, 'Settings'),
+      el('p', { class: 'hint' }, 'Language, voices, pronunciation dictionary, and knowledge base.'),
+      el('div', { class: 'form-grid' }, [
+        field('Language', langSel),
+        field('Voice model', modelSeg),
+        field('Pitch, f0_up_key', el('div', { class: 'range-row' }, [f0Range, f0Val])),
+        speakerField,
+        descField
+      ]),
+      el('div', { class: 'sett-group' }, [
+        el('label', {}, 'Pronunciation dictionary (JSON file only)'),
+        el('div', { class: 'flex', style: 'gap:10px;align-items:center;flex-wrap:wrap' }, [pronoFile, clearPronoBtn]),
+        pronoInfo
+      ]),
+      el('div', { class: 'sett-group' }, [
+        el('label', {}, 'Knowledge base'),
+        el('p', { class: 'hint' }, 'Facts are baked into the agent brain everywhere. Add titled facts so the agent can answer about your business.'),
+        el('div', { style: 'margin-top:10px' }, [addFactBtn]),
+        factsList
+      ]),
+      el('div', { class: 'flex gap-2', style: 'margin-top:18px;align-items:center' }, [submitBtn, existing ? el('button', { type: 'button', class: 'btn btn-ghost', onclick: () => modalClose() }, 'Cancel') : null])
+    ])
   ]);
 
-  card.appendChild(el('h3', {}, existing ? 'Edit agent' : 'New agent'));
-  card.appendChild(el('p', { class: 'hint' }, existing ? 'Update the persona, voice, or assigned number.' : 'Describe the persona and pick a voice. You can preview it instantly before assigning a number.'));
-  card.appendChild(form);
   syncVoice();
 
   let _modalClose = null;
   function modalClose() { if (_modalClose) _modalClose(); }
-  card._setModalClose = (fn) => { _modalClose = fn; };
+  form._setModalClose = (fn) => { _modalClose = fn; };
 
   async function onSave(ev) {
     ev.preventDefault();
@@ -755,7 +867,9 @@ function buildAgentForm(existing) {
       greeting: greetI.value.trim(),
       did: didSel.value || '',
       variables: variablesI.value.split(',').map((v) => v.trim()).filter(Boolean),
-      tts: { model: state.model, speaker: state.speaker, f0_up_key: state.f0, description: descI.value.trim(), language: state.language }
+      tts: { model: state.model, speaker: state.speaker, f0_up_key: state.f0, description: descI.value.trim(), language: state.language },
+      pronunciations: pronoWords,
+      knowledge: { facts: factsDraft }
     };
     try {
       if (existing) {
@@ -769,9 +883,7 @@ function buildAgentForm(existing) {
         const res = await api('/api/agents', { method: 'POST', body: payload });
         if (res.agent) State.agents.push(res.agent);
         toast('Agent created.', 'ok');
-        modalClose();
-        // reset the inline form
-        nameI.value = ''; personaI.value = ''; greetI.value = ''; descI.value = ''; didSel.value = ''; variablesI.value = ''; langSel.value = 'en-IN'; state.language = 'en-IN';
+        goto('agents');
       }
       paintAgents();
     } catch (ex) {
@@ -781,7 +893,7 @@ function buildAgentForm(existing) {
     }
   }
 
-  return card;
+  return form;
 }
 
 function paintAgents() {
@@ -800,7 +912,7 @@ function paintAgents() {
 
 function agentCard(a) {
   const tts = a.tts || {};
-  const voiceLine = normalizeModel(tts.model || 'bulbul:v3') + ' / ' + (tts.speaker || 'speaker') + (tts.language ? ' / ' + tts.language : '') + (tts.f0_up_key ? ' / pitch ' + (tts.f0_up_key > 0 ? '+' : '') + tts.f0_up_key : '');
+  const voiceLine = normalizeModel(tts.model || 'bulbul:v3') + ' / ' + (tts.speaker || 'speaker') + (tts.language ? ' / ' + langLabel(tts.language) : '') + (tts.f0_up_key ? ' / pitch ' + (tts.f0_up_key > 0 ? '+' : '') + tts.f0_up_key : '');
   const did = a.telephony && a.telephony.did ? a.telephony.did : null;
 
   const previewBtn = el('button', { class: 'btn btn-ghost btn-sm' }, 'Preview voice');
@@ -820,7 +932,7 @@ function agentCard(a) {
     el('div', { class: 'ac-meta' }, [
       did ? el('span', { class: 'tag' }, did) : el('span', { class: 'tag' }, 'no number'),
       el('span', { class: 'tag' }, normalizeModel(tts.model || 'bulbul:v3')),
-      el('span', { class: 'tag' }, tts.language || 'en-IN')
+      el('span', { class: 'tag' }, langLabel(tts.language))
     ]),
     el('div', { class: 'ac-actions' }, [
       previewBtn,
@@ -853,26 +965,10 @@ async function previewAgentVoice(a, btn) {
 
 function openEditAgent(a) {
   const form = buildAgentForm(a);
-  form.style.boxShadow = 'none'; form.style.border = '0'; form.style.background = 'transparent'; form.style.padding = '0';
   const host = $('#modal-host');
   const close = () => { host.classList.add('hide'); host.setAttribute('aria-hidden', 'true'); host.innerHTML = ''; };
   form._setModalClose(() => { close(); paintAgents(); });
-  const card = el('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', style: 'max-width:600px' }, [form]);
-  host.innerHTML = '';
-  host.appendChild(el('div', { onclick: (ev) => { if (ev.target === ev.currentTarget) close(); }, style: 'position:absolute;inset:0' }));
-  host.appendChild(card);
-  host.classList.remove('hide');
-  host.setAttribute('aria-hidden', 'false');
-  setTimeout(refillDidOptions, 0);
-}
-
-function openCreateAgent() {
-  const form = buildAgentForm(null);
-  form.style.boxShadow = 'none'; form.style.border = '0'; form.style.background = 'transparent'; form.style.padding = '0';
-  const host = $('#modal-host');
-  const close = () => { host.classList.add('hide'); host.setAttribute('aria-hidden', 'true'); host.innerHTML = ''; };
-  form._setModalClose(() => { close(); paintAgents(); });
-  const card = el('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', style: 'max-width:600px' }, [form]);
+  const card = el('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', style: 'max-width:640px' }, [form]);
   host.innerHTML = '';
   host.appendChild(el('div', { onclick: (ev) => { if (ev.target === ev.currentTarget) close(); }, style: 'position:absolute;inset:0' }));
   host.appendChild(card);
@@ -927,7 +1023,7 @@ function viewStudio(root) {
   const f0Range = el('input', { type: 'range', min: -12, max: 12, step: 1, value: 0, oninput: (ev) => { st.f0 = +ev.target.value; f0Val.textContent = (st.f0 > 0 ? '+' : '') + st.f0; } });
   const descI = el('input', { class: 'input', placeholder: 'Optional voice direction, e.g. warm and reassuring' });
   descI.addEventListener('input', () => { st.desc = descI.value; });
-  const langSel = el('select', { class: 'select', id: 's_lang' }, TTS_LANGUAGES.map((lc) => el('option', { value: lc, selected: lc === st.language ? 'selected' : false }, lc)));
+  const langSel = el('select', { class: 'select', id: 's_lang' }, TTS_LANGUAGES.map((lc) => el('option', { value: lc, selected: lc === st.language ? 'selected' : false }, langLabel(lc))));
   langSel.addEventListener('change', () => { st.language = langSel.value; });
 
   const bulbulV2Ctl = field('Tone (bulbul:v2)', toneSeg);

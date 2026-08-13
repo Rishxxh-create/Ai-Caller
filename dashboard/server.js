@@ -172,6 +172,28 @@ function normalizeVariables(raw) {
   }
   return out;
 }
+
+// Normalize a pronunciation dictionary. Accepts { "word": "pronunciation" }
+// or { entries: [{ word, pronunciation }] }. Bounded to keep the agent lean.
+const PRONO_MAX_ENTRIES = 500;
+const PRONO_MAX_WORD = 200;
+const PRONO_MAX_VALUE = 500;
+function normalizePronunciations(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const entries = Array.isArray(raw.entries)
+    ? raw.entries
+    : Object.keys(raw).map((k) => ({ word: k, pronunciation: raw[k] }));
+  const out = {};
+  for (const item of entries) {
+    if (!item || typeof item !== 'object') continue;
+    const word = String(item.word != null ? item.word : '').trim().slice(0, PRONO_MAX_WORD);
+    const value = String(item.pronunciation != null ? item.pronunciation : '').trim().slice(0, PRONO_MAX_VALUE);
+    if (!word || !value || out[word] != null) continue;
+    out[word] = value;
+    if (Object.keys(out).length >= PRONO_MAX_ENTRIES) break;
+  }
+  return out;
+}
 function migrateLegacyAgent(legacy, tenantId) {
   const model = normalizeTtsModel(legacy.model);
   const speaker = providers.TTS_ALL_VOICES.has(legacy.speaker) ? legacy.speaker : 'shubh';
@@ -285,6 +307,7 @@ function publicAgent(a) {
     greeting: a.greeting, telephony: a.telephony, presetId: a.presetId || null, createdAt: a.createdAt,
     variables: Array.isArray(a.variables) ? a.variables : [],
     knowledge: knowledge.normalizeKnowledge(a.knowledge),
+    pronunciations: normalizePronunciations(a.pronunciations),
   };
 }
 
@@ -521,6 +544,7 @@ async function apiAgentsCreate(req, res, ctx) {
     telephony: { did: String(b.did || providers.telephony.did).replace(/[^0-9]/g, '') || providers.telephony.did },
     variables: normalizeVariables(b.variables != null ? b.variables : (preset ? preset.fields : [])),
     knowledge: knowledge.normalizeKnowledge(b.knowledge),
+    pronunciations: normalizePronunciations(b.pronunciations),
     createdAt: new Date().toISOString(),
   };
   await core.mutate((d) => { d.agents.push(agent); });
@@ -562,6 +586,7 @@ async function apiAgentsUpdate(req, res, ctx) {
       // alone on save, so previously attached documents survive.
       a.knowledge = knowledge.normalizeKnowledge(b.knowledge, a.knowledge);
     }
+    if (b.pronunciations !== undefined) a.pronunciations = normalizePronunciations(b.pronunciations);
     updated = a;
   });
   core.sendJson(res, 200, { agent: publicAgent(updated) });
