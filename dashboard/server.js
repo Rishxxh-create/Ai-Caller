@@ -900,13 +900,50 @@ async function apiKnowledgeUpload(req, res, ctx) {
   }
 }
 
+// Translate a user-written greeting into the agent's speech language before
+// direct synthesis (voice preview and the talk view greeting). Live calls do
+// not need this: the brain already renders the greeting in the target language.
+// Falls back to the original text if translation fails, so synthesis never
+// breaks. Runs the numbers-to-English-word transform first and tells the model
+// to keep those number words intact, honoring the always-speak-numbers-in-English
+// rule.
+async function translateGreeting(text, language, ctx) {
+  const code = String(language || 'en-IN');
+  const clean = numbers.numbersToEnglishWords(String(text || ''));
+  if (code === 'en-IN') return clean;
+  try {
+    const selected = providers.resolveSelection('llm', {});
+    const label = knowledge.languageLabel(code);
+    const system = 'You are the translation engine for an AI voice agent. Translate the greeting ' +
+      'below into ' + label + ' for a natural spoken phone greeting. Keep it warm, short, and ' +
+      'conversational, with the same meaning. Keep all numbers as English words exactly as ' +
+      'written, never translate them into words of the target language and never write digits. ' +
+      'Output ONLY the translated greeting, with no quotes, labels, or extra explanation.';
+    const out = await selected.adapter.chat({
+      messages: [{ role: 'user', text: clean.slice(0, 300) }],
+      system, model: selected.model,
+    });
+    const translated = String(out.text || '').trim().replace(/^["'\u2018\u2019\u201c\u201d]+|["'\u2018\u2019\u201c\u201d]+$/g, '');
+    if (ctx) {
+      const approxTokens = Math.ceil((translated.length || clean.length) / 4);
+      bumpUsage(ctx.tenant.id, 'llmTokens', approxTokens).catch(() => {});
+    }
+    return translated || clean;
+  } catch (e) {
+    return clean;
+  }
+}
+
 // POST /api/tts -> Sarvam WAV bytes. Increments tenant usage.chars.
 async function apiTts(req, res, ctx) {
   const b = ctx.body || {};
   try {
     const selected = providers.resolveSelection('tts', { provider: b.provider, model: b.model });
+    const text = b.translate
+      ? await translateGreeting(b.text, b.language, ctx)
+      : numbers.numbersToEnglishWords(b.text);
     const out = await selected.adapter.synthesize({
-      text: numbers.numbersToEnglishWords(b.text),
+      text,
       model: selected.model,
       speaker: b.speaker,
       f0_up_key: b.f0_up_key,
@@ -926,13 +963,17 @@ async function apiTts(req, res, ctx) {
   }
 }
 
-// POST /api/ws-connect -> { ws_url, token } (Sarvam streaming mint).
+// POST /api/ws-connect -> { ws_url, token, text } (Sarvam streaming mint). The
+// returned text is the (possibly translated) text the client should stream.
 async function apiWsConnect(req, res, ctx) {
   const b = ctx.body || {};
   try {
     const selected = providers.resolveSelection('tts', { provider: b.provider, model: b.model });
-    const data = await selected.adapter.wsConnect({ text: b.text, model: selected.model });
-    core.sendJson(res, 200, { ...data, provider: selected.provider, model: selected.model });
+    const text = b.translate
+      ? await translateGreeting(b.text, b.language, ctx)
+      : String(b.text || '');
+    const data = await selected.adapter.wsConnect({ text, model: selected.model });
+    core.sendJson(res, 200, { ...data, text, provider: selected.provider, model: selected.model });
   } catch (e) {
     handleProviderError(res, e);
   }

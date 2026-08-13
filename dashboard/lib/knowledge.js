@@ -133,6 +133,10 @@ const LANGUAGE_LABELS = {
   'te-IN': 'Telugu',
 };
 
+function languageLabel(code) {
+  return LANGUAGE_LABELS[String(code || '')] || LANGUAGE_LABELS['en-IN'];
+}
+
 function agentLanguageLabel(agent) {
   const lang = agent && agent.tts && agent.tts.language;
   return LANGUAGE_LABELS[lang] || LANGUAGE_LABELS['en-IN'];
@@ -186,5 +190,6 @@ module.exports = {
   composeAgentPrompt,
   stripKnowledgeBlock,
   agentLanguageLabel,
+  languageLabel,
   speechLanguageBlock,
 };

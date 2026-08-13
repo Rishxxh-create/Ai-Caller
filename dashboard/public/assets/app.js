@@ -958,7 +958,7 @@ async function previewAgentVoice(a, btn) {
   const old = btn.textContent;
   btn.disabled = true; btn.textContent = 'Synthesizing...';
   try {
-    const body = { text, model: normalizeModel(tts.model), speaker: tts.speaker, f0_up_key: tts.f0_up_key, description: tts.description, language: tts.language };
+    const body = { text, model: normalizeModel(tts.model), speaker: tts.speaker, f0_up_key: tts.f0_up_key, description: tts.description, language: tts.language, translate: true };
     const res = await api('/api/tts', { method: 'POST', body: body });
     const buf = await res.arrayBuffer();
     const url = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
@@ -2082,16 +2082,19 @@ async function viewTalkLegacy(root) {
     }
   }
 
-  async function speakReply(text, agent) {
+  async function speakReply(text, agent, opts) {
     text = numbersToEnglishWords(text);
     const tts = agent.tts || {};
     const ttsStarted = performance.now();
     try {
+      const body = { text: text.slice(0, 2000), model: normalizeModel(tts.model || 'bulbul:v3') };
+      if (opts && opts.translate) { body.translate = true; body.language = tts.language || 'en-IN'; }
       const mint = await api('/api/ws-connect', {
         method: 'POST', timeoutMs: 12000,
-        body: { text: text.slice(0, 2000), model: normalizeModel(tts.model || 'bulbul:v3') }
+        body
       });
       if (!mint.ws_url) throw new Error('Sarvam stream URL was not returned.');
+      const speak = (mint.text && mint.text.trim()) || text;
       const url = mint.ws_url + (mint.token && mint.ws_url.indexOf('token=') === -1
         ? (mint.ws_url.indexOf('?') === -1 ? '?' : '&') + 'token=' + encodeURIComponent(mint.token)
         : '');
@@ -2116,7 +2119,7 @@ async function viewTalkLegacy(root) {
         }
 
         socket.onopen = () => {
-          const frame = { text: text.slice(0, 2000), model: normalizeModel(tts.model || 'bulbul:v3') };
+          const frame = { text: speak.slice(0, 2000), model: normalizeModel(tts.model || 'bulbul:v3') };
           if (frame.model === 'bulbul:v2' || frame.model === 'bulbul:v3') {
             if (tts.description) frame.description = tts.description;
             else frame.speaker = tts.speaker || 'shubh';
@@ -2313,7 +2316,7 @@ async function viewTalkLegacy(root) {
       addBubble('bot', greeting);
       convo.push({ role: 'bot', text: greeting });
       setPhase('speaking');
-      await speakReply(greeting, agent);
+      await speakReply(greeting, agent, { translate: true });
       if (sessionActive) listenForTurn();
     } catch (e) {
       toast('Microphone access failed. Allow the mic for this site, then start again.', 'err');
