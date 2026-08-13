@@ -194,6 +194,49 @@ function normalizePronunciations(raw) {
   }
   return out;
 }
+// Pronoun consistency: if the persona says the agent is male or female, the
+// agent must use only that gender's pronouns and grammatical forms in every
+// language it speaks. The directive is stripped and rebuilt on each save so
+// repeated edits never stack.
+const PRONOUN_DIRECTIVE_START = '# PRONOUN CONSISTENCY';
+const PRONOUN_DIRECTIVES = {
+  male: PRONOUN_DIRECTIVE_START + ' (male)\n' +
+    'You are a male agent. Always use only masculine pronouns and masculine grammatical forms in every language you speak: he, him, his in English, and the masculine forms in Hindi and other Indian languages (for example raha hai, uska, gaya). Never use feminine pronouns or feminine grammatical forms in any language.',
+  female: PRONOUN_DIRECTIVE_START + ' (female)\n' +
+    'You are a female agent. Always use only feminine pronouns and feminine grammatical forms in every language you speak: she, her, hers in English, and the feminine forms in Hindi and other Indian languages (for example rahi hai, uski, gayi). Never use masculine pronouns or masculine grammatical forms in any language.',
+};
+function stripPronounDirective(text) {
+  const idx = String(text || '').indexOf(PRONOUN_DIRECTIVE_START);
+  if (idx === -1) return String(text || '').replace(/\s+$/, '');
+  return String(text || '').slice(0, idx).replace(/\s+$/, '');
+}
+function detectPronounGender(text) {
+  const t = String(text || '').toLowerCase();
+  const pos = {};
+  const mark = (words, gender) => {
+    for (const w of words) {
+      const i = t.search(new RegExp('(^|[^a-z\u0900-\u097f])' + w + '([^a-z\u0900-\u097f]|$)'));
+      if (i !== -1) {
+        pos[gender] = pos[gender] === undefined ? i : Math.min(pos[gender], i);
+        return;
+      }
+    }
+  };
+  mark(['male', 'mard', 'purush'], 'male');
+  mark(['female', 'aurat', 'mahila'], 'female');
+  mark(['man', 'aadmi', 'gentleman', 'boy', 'ladka'], 'male');
+  mark(['woman', 'lady', 'girl', 'ladki'], 'female');
+  if (pos.female !== undefined && pos.male === undefined) return 'female';
+  if (pos.male !== undefined && pos.female === undefined) return 'male';
+  if (pos.female !== undefined && pos.male !== undefined) return pos.female < pos.male ? 'female' : 'male';
+  return null;
+}
+function withPronounDirective(persona) {
+  const clean = stripPronounDirective(persona);
+  const gender = detectPronounGender(clean);
+  if (!gender) return clean;
+  return clean + '\n\n' + PRONOUN_DIRECTIVES[gender];
+}
 function migrateLegacyAgent(legacy, tenantId) {
   const model = normalizeTtsModel(legacy.model);
   const speaker = providers.TTS_ALL_VOICES.has(legacy.speaker) ? legacy.speaker : 'shubh';
@@ -537,7 +580,7 @@ async function apiAgentsCreate(req, res, ctx) {
     id: core.genId('ag_'),
     tenantId: ctx.tenant.id,
     name: String(b.name || (preset && preset.name) || 'Untitled Agent').slice(0, 60),
-    persona: String(b.persona || (preset ? `${preset.name}. Collect: ${preset.fields.join(', ')}. Guardrails: ${preset.guardrails.join('; ')}.` : '')).slice(0, PERSONA_MAX),
+    persona: withPronounDirective(String(b.persona || (preset ? `${preset.name}. Collect: ${preset.fields.join(', ')}. Guardrails: ${preset.guardrails.join('; ')}.` : '')).slice(0, PERSONA_MAX)),
     tts: { provider: providers.tts.id, model, speaker, f0_up_key: f0, language },
     greeting: String(b.greeting || (preset && preset.greeting) || '').slice(0, 300),
     presetId: preset ? preset.id : null,
@@ -564,7 +607,7 @@ async function apiAgentsUpdate(req, res, ctx) {
   await core.mutate((dd) => {
     const a = dd.agents.find((x) => x.id === id);
     if (b.name != null) a.name = String(b.name).slice(0, 60);
-    if (b.persona != null) a.persona = String(b.persona).slice(0, PERSONA_MAX);
+    if (b.persona != null) a.persona = withPronounDirective(String(b.persona).slice(0, PERSONA_MAX));
     if (b.greeting != null) a.greeting = String(b.greeting).slice(0, 300);
     if (b.did != null) {
       const did = String(b.did).replace(/[^0-9]/g, '');
