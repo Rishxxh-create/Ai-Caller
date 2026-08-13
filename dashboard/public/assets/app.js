@@ -638,10 +638,10 @@ async function ensureTelephony(force) {
    2. AGENTS
    =========================================================================== */
 async function viewAgents(root) {
-  root.appendChild(viewHead('Agents', 'Each agent is a persona plus a voice. Preview the voice, then assign a number and ship it.'));
-
-  const builder = buildAgentForm(null);
-  root.appendChild(builder);
+  root.appendChild(el('div', { style: 'display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap' }, [
+    viewHead('Agents', 'Each agent is a persona plus a voice. Preview the voice, then assign a number and ship it.'),
+    el('button', { class: 'btn btn-primary', onclick: openCreateAgent }, 'Create Agent')
+  ]));
 
   const gridHost = el('div', { id: 'agentsGrid', class: 'agents-grid', style: 'margin-top:22px' }, skeleton('sk-card', 3));
   root.appendChild(gridHost);
@@ -769,6 +769,7 @@ function buildAgentForm(existing) {
         const res = await api('/api/agents', { method: 'POST', body: payload });
         if (res.agent) State.agents.push(res.agent);
         toast('Agent created.', 'ok');
+        modalClose();
         // reset the inline form
         nameI.value = ''; personaI.value = ''; greetI.value = ''; descI.value = ''; didSel.value = ''; variablesI.value = ''; langSel.value = 'en-IN'; state.language = 'en-IN';
       }
@@ -790,7 +791,7 @@ function paintAgents() {
   if (!State.agents.length) {
     grid.appendChild(el('div', { class: 'empty' }, [
       el('div', { class: 'ttl' }, 'No agents yet'),
-      el('div', {}, 'Use the builder above to create your first voice agent.')
+      el('div', {}, 'Click Create Agent to build your first voice agent.')
     ]));
     return;
   }
@@ -852,6 +853,21 @@ async function previewAgentVoice(a, btn) {
 
 function openEditAgent(a) {
   const form = buildAgentForm(a);
+  form.style.boxShadow = 'none'; form.style.border = '0'; form.style.background = 'transparent'; form.style.padding = '0';
+  const host = $('#modal-host');
+  const close = () => { host.classList.add('hide'); host.setAttribute('aria-hidden', 'true'); host.innerHTML = ''; };
+  form._setModalClose(() => { close(); paintAgents(); });
+  const card = el('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', style: 'max-width:600px' }, [form]);
+  host.innerHTML = '';
+  host.appendChild(el('div', { onclick: (ev) => { if (ev.target === ev.currentTarget) close(); }, style: 'position:absolute;inset:0' }));
+  host.appendChild(card);
+  host.classList.remove('hide');
+  host.setAttribute('aria-hidden', 'false');
+  setTimeout(refillDidOptions, 0);
+}
+
+function openCreateAgent() {
+  const form = buildAgentForm(null);
   form.style.boxShadow = 'none'; form.style.border = '0'; form.style.background = 'transparent'; form.style.padding = '0';
   const host = $('#modal-host');
   const close = () => { host.classList.add('hide'); host.setAttribute('aria-hidden', 'true'); host.innerHTML = ''; };
