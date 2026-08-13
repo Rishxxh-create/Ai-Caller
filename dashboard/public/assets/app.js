@@ -14,6 +14,7 @@ const el = (tag, attrs, kids) => {
     if (k === 'class') n.className = attrs[k];
     else if (k === 'html') n.innerHTML = attrs[k];
     else if (k.slice(0, 2) === 'on' && typeof attrs[k] === 'function') n.addEventListener(k.slice(2).toLowerCase(), attrs[k]);
+    else if (k === 'value' && (tag === 'input' || tag === 'textarea')) n.value = attrs[k];
     else if (attrs[k] != null && attrs[k] !== false) n.setAttribute(k, attrs[k]);
   }
   if (kids != null) (Array.isArray(kids) ? kids : [kids]).forEach((c) => {
@@ -711,7 +712,7 @@ function buildAgentForm(existing) {
   };
 
   const nameI = el('input', { class: 'input', id: 'f_name', type: 'text', value: e.name || '', placeholder: 'Front Desk', maxlength: 80 });
-  const personaI = el('textarea', { class: 'textarea', id: 'f_persona', rows: 8, maxlength: 10000, placeholder: 'You are a warm, sharp receptionist. Answer in 1 to 2 short spoken sentences, qualify the lead, and book a callback. Describe in detail how the agent should behave, what to collect, and any guardrails.' }, e.persona || '');
+  const personaI = el('textarea', { class: 'textarea', id: 'f_persona', rows: 8, maxlength: 10000, placeholder: 'You are a warm, sharp receptionist. Answer in 1 to 2 short spoken sentences, qualify the lead, and book a callback. Describe in detail how the agent should behave, what to collect, and any guardrails.' }, stripPersonaDirective(e.persona) || '');
   const greetI = el('input', { class: 'input', id: 'f_greeting', type: 'text', value: e.greeting || '', placeholder: 'Hi, thanks for calling RapidX. How can I help today.', maxlength: 240 });
   const descI = el('input', { class: 'input', id: 'f_desc', type: 'text', value: (tts.description || ''), placeholder: 'Optional voice direction, e.g. calm and confident' });
 
@@ -1001,6 +1002,13 @@ function confirmDeleteAgent(a) {
 }
 
 /* helper used by builder */
+const PRONOUN_DIRECTIVE_MARK = '# PRONOUN CONSISTENCY';
+function stripPersonaDirective(text) {
+  const s = String(text || '');
+  const idx = s.indexOf(PRONOUN_DIRECTIVE_MARK);
+  if (idx === -1) return s;
+  return s.slice(0, idx).replace(/\s+$/, '');
+}
 function field(label, input) { return el('div', { class: 'field' }, [el('label', {}, label), input]); }
 
 /* ===========================================================================
