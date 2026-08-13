@@ -770,7 +770,7 @@ function buildAgentForm(existing) {
         if (res.agent) State.agents.push(res.agent);
         toast('Agent created.', 'ok');
         // reset the inline form
-        nameI.value = ''; personaI.value = ''; greetI.value = ''; descI.value = ''; didSel.value = ''; variablesI.value = '';
+        nameI.value = ''; personaI.value = ''; greetI.value = ''; descI.value = ''; didSel.value = ''; variablesI.value = ''; langSel.value = 'en-IN'; state.language = 'en-IN';
       }
       paintAgents();
     } catch (ex) {
