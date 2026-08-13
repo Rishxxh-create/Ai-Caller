@@ -42,6 +42,9 @@ const DEMO_EMAIL = String(process.env.TEST_USER_EMAIL || '').trim().toLowerCase(
 const DEMO_PASS = String(process.env.TEST_USER_PASSWORD || '');
 const DEMO_TENANT = String(process.env.TEST_USER_TENANT || 'RapidX Test');
 const TRIAL_CREDIT_PAISE = 1000;
+// Persona field cap. Generous so a persona can fully describe how an agent
+// should work. Mirrored by the persona textarea maxlength in the console.
+const PERSONA_MAX = 10000;
 const CREDIT_PACKS = Object.freeze({
   starter: Object.freeze({ amount: '200.00', currency: 'INR', credits: 20000, productinfo: 'RapidX Voice Starter Credits' }),
   growth: Object.freeze({ amount: '500.00', currency: 'INR', credits: 50000, productinfo: 'RapidX Voice Growth Credits' }),
@@ -176,7 +179,7 @@ function migrateLegacyAgent(legacy, tenantId) {
     id: legacy.id || core.genId('ag_'),
     tenantId,
     name: String(legacy.name || 'Untitled Agent').slice(0, 60),
-    persona: String(legacy.persona || '').slice(0, 1500),
+    persona: String(legacy.persona || '').slice(0, PERSONA_MAX),
     tts: {
       provider: providers.tts.id,
       model,
@@ -509,7 +512,7 @@ async function apiAgentsCreate(req, res, ctx) {
     id: core.genId('ag_'),
     tenantId: ctx.tenant.id,
     name: String(b.name || (preset && preset.name) || 'Untitled Agent').slice(0, 60),
-    persona: String(b.persona || (preset ? `${preset.name}. Collect: ${preset.fields.join(', ')}. Guardrails: ${preset.guardrails.join('; ')}.` : '')).slice(0, 1500),
+    persona: String(b.persona || (preset ? `${preset.name}. Collect: ${preset.fields.join(', ')}. Guardrails: ${preset.guardrails.join('; ')}.` : '')).slice(0, PERSONA_MAX),
     tts: { provider: providers.tts.id, model, speaker, f0_up_key: f0 },
     greeting: String(b.greeting || (preset && preset.greeting) || '').slice(0, 300),
     presetId: preset ? preset.id : null,
@@ -535,7 +538,7 @@ async function apiAgentsUpdate(req, res, ctx) {
   await core.mutate((dd) => {
     const a = dd.agents.find((x) => x.id === id);
     if (b.name != null) a.name = String(b.name).slice(0, 60);
-    if (b.persona != null) a.persona = String(b.persona).slice(0, 1500);
+    if (b.persona != null) a.persona = String(b.persona).slice(0, PERSONA_MAX);
     if (b.greeting != null) a.greeting = String(b.greeting).slice(0, 300);
     if (b.did != null) {
       const did = String(b.did).replace(/[^0-9]/g, '');
